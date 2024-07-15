@@ -146,6 +146,7 @@ def run(optTuple):
     fluxDistOldVersionBool = optTuple[2]["fluxDistOldVersionBool"]
     relIdBool = optTuple[2]["outputRelIdBool"]
     previewMode = optTuple[2]["previewMode"]
+    calcGeneration = optTuple[2]["calcGeneration"]
 
     # Temp-Dir (all input files are located here and results are written back in here)
     tempDir = optTuple[3]["tempDir"]
@@ -262,6 +263,7 @@ def run(optTuple):
                     forestParams,
                     outputs,
                     relOutputParams,
+                    calcGeneration,
                 ]
                 for release_sub in release_list
             ],
@@ -493,6 +495,7 @@ def calculation(args):
     outputs = args[16]
     relIdArray = args[17]["relIdArray"]
     relIdBool = args[17]["relIdBool"]
+    calcGeneration = args[18]
 
     if forestBool:
         forestArray = args[14]
@@ -613,188 +616,379 @@ def calculation(args):
         processedCells[(startcell.rowindex, startcell.colindex)] = 1
 
         # list of flowClass.Cell() Objects that is contains the "path" for each release-cell
-        cell_list.append(startcell)
+        if calcGeneration:
+            cellList = [startcell]  # list of parents for current iteration
+            genList = [cellList]    # list of all cells (which are calculated), oreganised in generations
+            childList = []          # list of childs of the current iteration
 
-        if infraBool:
-            # adding start-cell as "root-node" to directed graph of the modeled process path
-            updateInfraDirGraph(startcell.rowindex, startcell.colindex)
+            for gen, cellList in enumerate(genList):
+                for idx, cell in enumerate(cellList):
 
-        for idx, cell in enumerate(cell_list):
-            if relIdBool:
-                if (cell.rowindex, cell.colindex) in startCellIdDict:
-                    startcellIdList = np.append(startCellIdDict[(cell.rowindex, cell.colindex)], startcellId)
-                    startCellIdDict[(cell.rowindex, cell.colindex)] = np.unique(startcellIdList)
-                else:
-                    startCellIdDict[(cell.rowindex, cell.colindex)] = np.array([startcellId])
+                    if relIdBool:
+                        if (cell.rowindex, cell.colindex) in startCellIdDict:
+                            startcellIdList = np.append(
+                                startCellIdDict[(cell.rowindex, cell.colindex)], startcellId)
+                            startCellIdDict[(cell.rowindex, cell.colindex)] = np.unique(
+                                startcellIdList)
+                        else:
+                            startCellIdDict[(cell.rowindex, cell.colindex)] = np.array([startcellId])
 
-            # calculate flux, z_delta from current cell (cell) to child-cells
-            # lenght of row, col, flux, and z_delta vectors correspond to
-            # number of child cells (successors) to currently processed cell
-            row, col, flux, z_delta = cell.calc_distribution()
+                    # calculate flux, z_delta from current cell (cell) to child-cells
+                    # lenght of row, col, flux, and z_delta vectors correspond to
+                    # number of child cells (successors) to currently processed cell
+                    row, col, flux, z_delta = cell.calc_distribution()
 
-            if len(flux) > 0:  # i.e. if there are child cells
-                # Sort this lists by z_delta, to start with the highest cell
-                z_delta, flux, row, col = list(zip(*sorted(zip(z_delta, flux, row, col), reverse=False)))
+                    if len(row) > 0:
+                        # mass, row, col  = list(zip(*sorted(zip( mass, row, col), reverse=False)))
+                        z_delta, flux, row, col = list(zip(*sorted(zip(z_delta, flux, row, col), reverse=False)))
+                        # Sort this lists by elh, to start with the highest cell
+
+                    if infraBool:
+                        # if the current cell is not already in the dir-graph, then we add it here
+                        updateInfraDirGraph(cell.rowindex, cell.colindex)
+                        
+                    # check if cell already exists
+                    """
+                    for i in range(len(cellList)):  # Check if Cell already exists
+                        k = 0
+                        while k < len(row):
+                            if row[k] == cellList[i].rowindex and col[k] == cellList[i].colindex:
+                                cellList[i].add_os(flux[k])
+                                cellList[i].add_parent(cell)
+
+                                if infraBool:
+                                    updateInfraDirGraph(row[k], col[k], cell.rowindex, cell.colindex)
+
+                                if z_delta[k] > cellList[i].z_delta:
+                                    cellList[i].z_delta = z_delta[k]
+                                row = np.delete(row, k)
+                                col = np.delete(col, k)
+                                flux = np.delete(flux, k)
+                                z_delta = np.delete(z_delta, k)
+                            else:
+                                k += 1
+                    """
+
+                    for i in range(len(childList)):  # Check if Cell already exists in childList
+                        k = 0
+                        while k < len(row):
+                            if row[k] == childList[i].rowindex and col[k] == childList[i].colindex:
+                                childList[i].add_os(flux[k])
+                                childList[i].add_parent(cell)
+                                if relVolBool:
+                                    childList[i].calc_startCellVol(startcellVol)
+
+                                if infraBool:
+                                    updateInfraDirGraph(row[k], col[k], cell.rowindex, cell.colindex)
+
+                                if z_delta[k] > childList[i].z_delta:
+                                    childList[i].z_delta = z_delta[k]
+                                row = np.delete(row, k)
+                                col = np.delete(col, k)
+                                flux = np.delete(flux, k)
+                                z_delta = np.delete(z_delta, k)
+                            else:
+                                k += 1
+
+                    for k in range(len(row)):
+                        dem_ng = dem[row[k] - 1 : row[k] + 2, col[k] - 1 : col[k] + 2]  # neighbourhood DEM
+
+                        # This bit handles edge cases and noData-values in the DEM!! this is an important piece of code, since
+                        # no-data handling is expected (by some users/applications) to behave like here:
+                        # i.e. if nodata in the 3x3 neighbourhood --> no calculation
+                        if (nodata in dem_ng) or np.size(dem_ng) < 9:
+                            continue
+
+                        # if the current child cell is already in processedCells
+                        # just add +1 to the visit-counter, else add it to the
+                        # processedCells dictionary with visit-count = 1
+                        if (row[k], col[k]) in processedCells:
+                            processedCells[(row[k], col[k])] += 1
+                        else:
+                            processedCells[(row[k], col[k])] = 1
+
+                        childList.append(Cell(
+                                    row[k], col[k],
+                                    dem_ng, cellsize,
+                                    flux[k], z_delta[k],
+                                    cell,
+                                    alpha, exp, flux_threshold, max_z_delta,
+                                    startcell,
+                                    FSI=forestArray[row[k], col[k]] if isinstance(forestArray, np.ndarray) else None,
+                                    forestParams=forestParams,
+                                    startcellVol=startcellVol,
+                                            ))
+                if len(childList) > 0:
+                    cellList = childList
+                    genList.append(cellList)
+                    childList = []
+
+            for gen, cellList in enumerate(genList):
+                # do we need to write the arrays here, or could we do that a step before?
+                for cell in cellList:
+                    routFluxSumArray[cell.rowindex, cell.colindex] += cell.flux
+                    depFluxSumArray[cell.rowindex, cell.colindex] += cell.fluxDep
+                    zDeltaArray[cell.rowindex, cell.colindex] = max(zDeltaArray[cell.rowindex, cell.colindex], cell.z_delta)
+                    fluxArray[cell.rowindex, cell.colindex] = max(fluxArray[cell.rowindex, cell.colindex], cell.flux)
+                    zDeltaPathArray[cell.rowindex, cell.colindex] = max(zDeltaPathArray[cell.rowindex, cell.colindex], cell.z_delta)
+                    if "fpTravelAngleMax" in outputs or "fpTravelAngle" in outputs:
+                        fpTravelAngleMaxArray[cell.rowindex, cell.colindex] = max(
+                            fpTravelAngleMaxArray[cell.rowindex, cell.colindex], cell.max_gamma
+                        )
+                    if "fpTravelAngleMin" in outputs:
+                        if fpTravelAngleMinArray[cell.rowindex, cell.colindex] >= 0 and cell.max_gamma >= 0:
+                            fpTravelAngleMinArray[cell.rowindex, cell.colindex] = min(
+                                fpTravelAngleMinArray[cell.rowindex, cell.colindex], cell.max_gamma
+                            )
+                        else:
+                            fpTravelAngleMinArray[cell.rowindex, cell.colindex] = max(
+                                fpTravelAngleMinArray[cell.rowindex, cell.colindex], cell.max_gamma
+                            )
+                    slTravelAngleArray[cell.rowindex, cell.colindex] = max(slTravelAngleArray[cell.rowindex, cell.colindex],
+                                                                        cell.sl_gamma)
+                    if "travelLengthMax" in outputs or "travelLength" in outputs:
+                        travelLengthMaxArray[cell.rowindex, cell.colindex] = max(
+                            travelLengthMaxArray[cell.rowindex, cell.colindex], cell.min_distance
+                        )
+                    if "travelLengthMin" in outputs:
+                        if travelLengthMinArray[cell.rowindex, cell.colindex] >= 0 and cell.min_distance >= 0:
+                            travelLengthMinArray[cell.rowindex, cell.colindex] = min(
+                                travelLengthMinArray[cell.rowindex, cell.colindex], cell.min_distance
+                            )
+                        else:
+                            travelLengthMinArray[cell.rowindex, cell.colindex] = max(
+                                travelLengthMinArray[cell.rowindex, cell.colindex], cell.min_distance
+                            )
+
+                    if "relVolMax" in outputs:
+                        relVolMaxArray[cell.rowindex, cell.colindex] = max(
+                            relVolMaxArray[cell.rowindex, cell.colindex], cell.startcellVolMax
+                        )
+                    if "relVolMin" in outputs:
+                        if relVolMinArray[cell.rowindex, cell.colindex] >= 0 and cell.startcellVolMin >= 0:
+                            relVolMinArray[cell.rowindex, cell.colindex] = min(
+                                relVolMinArray[cell.rowindex, cell.colindex], cell.startcellVolMin
+                            )
+                        else:
+                            relVolMinArray[cell.rowindex, cell.colindex] = max(
+                                relVolMinArray[cell.rowindex, cell.colindex], cell.startcellVolMin
+                            )
+
+                    if processedCells[(cell.rowindex, cell.colindex)] == 1:
+                        countArray[cell.rowindex, cell.colindex] += int(1)
+
+                    if forestInteraction:
+                        if forestIntArray[cell.rowindex, cell.colindex] >= 0 and cell.forestIntCount >= 0:
+                            forestIntArray[cell.rowindex, cell.colindex] = min(forestIntArray[cell.rowindex, cell.colindex],
+                                                                            cell.forestIntCount)
+                        else:
+                            forestIntArray[cell.rowindex, cell.colindex] = max(forestIntArray[cell.rowindex, cell.colindex],
+                                                                            cell.forestIntCount)
+                    if infraBool:
+                        # if 'infraBool' is True - i.e. calculation is performed with infrastructure information
+                        # then we perform the back-tracking of the stored directed graph (topology and node values)
+
+                        updatedInfraValues = backTracking(pathTopology, infraValues) # actual "back-tracking" for current process-path
+
+                        for key, val in updatedInfraValues.items():
+                            backcalc[key[0], key[1]] = max(backcalc[key[0], key[1]], val) # writing max-values to back-tracking array
+
+                        del pathTopology, infraValues, updatedInfraValues
+                        gc.collect()
+
+                    if previewMode:
+                        # if the 'previewMode' is On/'True', then we check here if the current modeled process zones already
+                        # includes other release Cells (i.e. if release cells are "hit from above")
+                        # if this is the case, then we exclude the affected release cell(s) from further processing and update
+                        # the row_list, col_list variables containing the release cells that should be processed
+                        release[zDeltaArray > 0] = 0
+                        row_list, col_list = get_start_idx(dem, release)
+
+                    zDeltaPathList.append(zDeltaPathArray)
+                    del processedCells, zDeltaPathArray
+
+                    startcell_idx += 1
+
+                for zDeltaPathArray in zDeltaPathList:
+                    zDeltaSumArray += zDeltaPathArray
+                
+                gc.collect()
+
+        else:
+            cellList = []
+            cellList.append(startcell)
 
             if infraBool:
-                # if the current cell is not already in the dir-graph, then we add it here
-                updateInfraDirGraph(cell.rowindex, cell.colindex)
+                # adding start-cell as "root-node" to directed graph of the modeled process path
+                updateInfraDirGraph(startcell.rowindex, startcell.colindex)
 
-            # check if child cells already exist
-            for i in range(idx, len(cell_list)):
-                k = 0
-                while k < len(row):
-                    if row[k] == cell_list[i].rowindex and col[k] == cell_list[i].colindex:
-                        cell_list[i].add_os(flux[k])
-                        cell_list[i].add_parent(cell)
-                        if relVolBool:
-                            cell_list[i].calc_startCellVol(startcellVol)
-
-                        if infraBool:
-                            updateInfraDirGraph(row[k], col[k], cell.rowindex, cell.colindex)
-
-                        if z_delta[k] > cell_list[i].z_delta:
-                            cell_list[i].z_delta = z_delta[k]
-                        row = np.delete(row, k)
-                        col = np.delete(col, k)
-                        flux = np.delete(flux, k)
-                        z_delta = np.delete(z_delta, k)
+            for idx, cell in enumerate(cellList):
+                if relIdBool:
+                    if (cell.rowindex, cell.colindex) in startCellIdDict:
+                        startcellIdList = np.append(
+                            startCellIdDict[(cell.rowindex, cell.colindex)], startcellId)
+                        startCellIdDict[(cell.rowindex, cell.colindex)] = np.unique(
+                            startcellIdList)
                     else:
-                        k += 1
+                        startCellIdDict[(cell.rowindex, cell.colindex)] = np.array([startcellId])
+                        
+                row, col, flux, z_delta = cell.calc_distribution()
 
-            for k in range(len(row)):
-                dem_ng = dem[row[k] - 1 : row[k] + 2, col[k] - 1 : col[k] + 2]  # neighbourhood DEM
-
-                # This bit handles edge cases and noData-values in the DEM!! this is an important piece of code, since
-                # no-data handling is expected (by some users/applications) to behave like here:
-                # i.e. if nodata in the 3x3 neighbourhood --> no calculation
-                if (nodata in dem_ng) or np.size(dem_ng) < 9:
-                    continue
+                if len(flux) > 0:
+                    # mass, row, col  = list(zip(*sorted(zip( mass, row, col), reverse=False)))
+                    z_delta, flux, row, col = list(zip(*sorted(zip(z_delta, flux, row, col), reverse=False)))
+                    # Sort this lists by elh, to start with the highest cell
 
                 if infraBool:
-                    updateInfraDirGraph(row[k], col[k], cell.rowindex, cell.colindex)
+                    # if the current cell is not already in the dir-graph, then we add it here
+                    updateInfraDirGraph(cell.rowindex, cell.colindex)
 
-                # if the current child cell is already in processedCells
-                # just add +1 to the visit-counter, else add it to the
-                # processedCells dictionary with visit-count = 1
-                if (row[k], col[k]) in processedCells:
-                    processedCells[(row[k], col[k])] += 1
-                else:
-                    processedCells[(row[k], col[k])] = 1
+                # check if cell already exists
+                for i in range(idx, len(cellList)):  # Check if Cell already exists
+                    k = 0
+                    while k < len(row):
+                        if row[k] == cellList[i].rowindex and col[k] == cellList[i].colindex:
+                            cellList[i].add_os(flux[k])
+                            cellList[i].add_parent(cell)
+                            if relVolBool:
+                                cellList[i].calc_startCellVol(startcellVol)
 
-                cell_list.append(
-                    Cell(
-                        row[k],
-                        col[k],
-                        dem_ng,
-                        cellsize,
-                        flux[k],
-                        z_delta[k],
-                        cell,
-                        alpha,
-                        exp,
-                        flux_threshold,
-                        max_z_delta,
-                        startcell,
-                        fluxDistOldVersionBool=fluxDistOldVersionBool,
-                        FSI=forestArray[row[k], col[k]] if isinstance(forestArray, np.ndarray) else None,
-                        forestParams=forestParams,
-                        startcellVol=startcellVol,
-                    )
+                            if infraBool:
+                                updateInfraDirGraph(row[k], col[k], cell.rowindex, cell.colindex)
+
+                            if z_delta[k] > cellList[i].z_delta:
+                                cellList[i].z_delta = z_delta[k]
+                            row = np.delete(row, k)
+                            col = np.delete(col, k)
+                            flux = np.delete(flux, k)
+                            z_delta = np.delete(z_delta, k)
+                        else:
+                            k += 1
+                for k in range(len(row)):
+                    dem_ng = dem[row[k] - 1 : row[k] + 2, col[k] - 1 : col[k] + 2]  # neighbourhood DEM
+
+                    # This bit handles edge cases and noData-values in the DEM!! this is an important piece of 
+                    # code, sinceno-data handling is expected (by some users/applications) to behave like here:
+                    # i.e. if nodata in the 3x3 neighbourhood --> no calculation
+                    if (nodata in dem_ng) or np.size(dem_ng) < 9:
+                        continue
+
+                    if infraBool:
+                        updateInfraDirGraph(row[k], col[k], cell.rowindex, cell.colindex)
+
+                    # if the current child cell is already in processedCells
+                    # just add +1 to the visit-counter, else add it to the
+                    # processedCells dictionary with visit-count = 1
+                    if (row[k], col[k]) in processedCells:
+                        processedCells[(row[k], col[k])] += 1
+                    else:
+                        processedCells[(row[k], col[k])] = 1
+
+                    cellList.append(Cell(
+                                row[k], col[k],
+                                dem_ng, cellsize,
+                                flux[k], z_delta[k],
+                                cell,
+                                alpha, exp, flux_threshold, max_z_delta,
+                                startcell,
+                                FSI=forestArray[row[k], col[k]] if isinstance(forestArray, np.ndarray) else None,
+                                forestParams=forestParams,
+                                startcellVol=startcellVol,
+                                            ))
+                    
+                zDeltaArray[cell.rowindex, cell.colindex] = max(
+                    zDeltaArray[cell.rowindex, cell.colindex], cell.z_delta
                 )
-
-            zDeltaArray[cell.rowindex, cell.colindex] = max(
-                zDeltaArray[cell.rowindex, cell.colindex], cell.z_delta
-            )
-            fluxArray[cell.rowindex, cell.colindex] = max(fluxArray[cell.rowindex, cell.colindex], cell.flux)
-            routFluxSumArray[cell.rowindex, cell.colindex] += cell.flux
-            depFluxSumArray[cell.rowindex, cell.colindex] += cell.fluxDep
-            zDeltaSumArray[cell.rowindex, cell.colindex] += cell.z_delta
-
-            zDeltaPathArray[cell.rowindex, cell.colindex] = max(
-                zDeltaPathArray[cell.rowindex, cell.colindex], cell.z_delta
-            )
-            if "fpTravelAngleMax" in outputs or "fpTravelAngle" in outputs:
-                fpTravelAngleMaxArray[cell.rowindex, cell.colindex] = max(
-                    fpTravelAngleMaxArray[cell.rowindex, cell.colindex], cell.max_gamma
+                fluxArray[cell.rowindex, cell.colindex] = max(fluxArray[cell.rowindex, cell.colindex], cell.flux)
+                routFluxSumArray[cell.rowindex, cell.colindex] += cell.flux
+                depFluxSumArray[cell.rowindex, cell.colindex] += cell.fluxDep
+                zDeltaPathArray[cell.rowindex, cell.colindex] = max(
+                    zDeltaPathArray[cell.rowindex, cell.colindex], cell.z_delta
                 )
-            if "fpTravelAngleMin" in outputs:
-                if fpTravelAngleMinArray[cell.rowindex, cell.colindex] >= 0 and cell.max_gamma >= 0:
-                    fpTravelAngleMinArray[cell.rowindex, cell.colindex] = min(
-                        fpTravelAngleMinArray[cell.rowindex, cell.colindex], cell.max_gamma
+                if "fpTravelAngleMax" in outputs or "fpTravelAngle" in outputs:
+                    fpTravelAngleMaxArray[cell.rowindex, cell.colindex] = max(
+                        fpTravelAngleMaxArray[cell.rowindex, cell.colindex], cell.max_gamma
                     )
-                else:
-                    fpTravelAngleMinArray[cell.rowindex, cell.colindex] = max(
-                        fpTravelAngleMinArray[cell.rowindex, cell.colindex], cell.max_gamma
-                    )
-            slTravelAngleArray[cell.rowindex, cell.colindex] = max(
-                slTravelAngleArray[cell.rowindex, cell.colindex], cell.sl_gamma
-            )
-            if "travelLengthMax" in outputs or "travelLength" in outputs:
-                travelLengthMaxArray[cell.rowindex, cell.colindex] = max(
-                    travelLengthMaxArray[cell.rowindex, cell.colindex], cell.min_distance
+                if "fpTravelAngleMin" in outputs:
+                    if fpTravelAngleMinArray[cell.rowindex, cell.colindex] >= 0 and cell.max_gamma >= 0:
+                        fpTravelAngleMinArray[cell.rowindex, cell.colindex] = min(
+                            fpTravelAngleMinArray[cell.rowindex, cell.colindex], cell.max_gamma
+                        )
+                    else:
+                        fpTravelAngleMinArray[cell.rowindex, cell.colindex] = max(
+                            fpTravelAngleMinArray[cell.rowindex, cell.colindex], cell.max_gamma
+                        )
+                slTravelAngleArray[cell.rowindex, cell.colindex] = max(
+                    slTravelAngleArray[cell.rowindex, cell.colindex], cell.sl_gamma
                 )
-            if "travelLengthMin" in outputs:
-                if travelLengthMinArray[cell.rowindex, cell.colindex] >= 0 and cell.min_distance >= 0:
-                    travelLengthMinArray[cell.rowindex, cell.colindex] = min(
-                        travelLengthMinArray[cell.rowindex, cell.colindex], cell.min_distance
+                
+                if "travelLengthMax" in outputs or "travelLength" in outputs:
+                    travelLengthMaxArray[cell.rowindex, cell.colindex] = max(
+                        travelLengthMaxArray[cell.rowindex, cell.colindex], cell.min_distance
                     )
-                else:
-                    travelLengthMinArray[cell.rowindex, cell.colindex] = max(
-                        travelLengthMinArray[cell.rowindex, cell.colindex], cell.min_distance
+                if "travelLengthMin" in outputs:
+                    if travelLengthMinArray[cell.rowindex, cell.colindex] >= 0 and cell.min_distance >= 0:
+                        travelLengthMinArray[cell.rowindex, cell.colindex] = min(
+                            travelLengthMinArray[cell.rowindex, cell.colindex], cell.min_distance
+                        )
+                    else:
+                        travelLengthMinArray[cell.rowindex, cell.colindex] = max(
+                            travelLengthMinArray[cell.rowindex, cell.colindex], cell.min_distance
+                        )
+
+                if "relVolMax" in outputs:
+                    relVolMaxArray[cell.rowindex, cell.colindex] = max(
+                        relVolMaxArray[cell.rowindex, cell.colindex], cell.startcellVolMax
                     )
+                if "relVolMin" in outputs:
+                    if relVolMinArray[cell.rowindex, cell.colindex] >= 0 and cell.startcellVolMin >= 0:
+                        relVolMinArray[cell.rowindex, cell.colindex] = min(
+                            relVolMinArray[cell.rowindex, cell.colindex], cell.startcellVolMin
+                        )
+                    else:
+                        relVolMinArray[cell.rowindex, cell.colindex] = max(
+                            relVolMinArray[cell.rowindex, cell.colindex], cell.startcellVolMin
+                        )
+                if processedCells[(cell.rowindex, cell.colindex)] == 1:
+                    countArray[cell.rowindex, cell.colindex] += int(1)
 
-            if processedCells[(cell.rowindex, cell.colindex)] == 1:
-                countArray[cell.rowindex, cell.colindex] += int(1)
+                if forestInteraction:
+                    if forestIntArray[cell.rowindex, cell.colindex] >= 0 and cell.forestIntCount >= 0:
+                        forestIntArray[cell.rowindex, cell.colindex] = min(
+                            forestIntArray[cell.rowindex, cell.colindex], cell.forestIntCount
+                        )
+                    else:
+                        forestIntArray[cell.rowindex, cell.colindex] = max(
+                            forestIntArray[cell.rowindex, cell.colindex], cell.forestIntCount
+                            )
+                if infraBool:
+                    # if 'infraBool' is True - i.e. calculation is performed with infrastructure information
+                    # then we perform the back-tracking of the stored directed graph (topology and node values)
 
-            if forestInteraction:
-                if forestIntArray[cell.rowindex, cell.colindex] >= 0 and cell.forestIntCount >= 0:
-                    forestIntArray[cell.rowindex, cell.colindex] = min(
-                        forestIntArray[cell.rowindex, cell.colindex], cell.forestIntCount
-                    )
-                else:
-                    forestIntArray[cell.rowindex, cell.colindex] = max(
-                        forestIntArray[cell.rowindex, cell.colindex], cell.forestIntCount
-            if "relVolMax" in outputs:
-                relVolMaxArray[cell.rowindex, cell.colindex] = max(
-                    relVolMaxArray[cell.rowindex, cell.colindex], cell.startcellVolMax
-                )
-            if "relVolMin" in outputs:
-                if relVolMinArray[cell.rowindex, cell.colindex] >= 0 and cell.startcellVolMin >= 0:
-                    relVolMinArray[cell.rowindex, cell.colindex] = min(
-                        relVolMinArray[cell.rowindex, cell.colindex], cell.startcellVolMin
-                    )
-                else:
-                    relVolMinArray[cell.rowindex, cell.colindex] = max(
-                        relVolMinArray[cell.rowindex, cell.colindex], cell.startcellVolMin
-                    )
+                    updatedInfraValues = backTracking(
+                        pathTopology, infraValues
+                    ) # actual "back-tracking" for current process-path
 
-        if infraBool:
-            # if 'infraBool' is True - i.e. calculation is performed with infrastructure information
-            # then we perform the back-tracking of the stored directed graph (topology and node values)
+                    for key, val in updatedInfraValues.items():
+                        backcalc[key[0], key[1]] = max(
+                            backcalc[key[0], key[1]], val
+                        ) # writing max-values to back-tracking array
 
-            updatedInfraValues = backTracking(
-                pathTopology, infraValues
-            )  # actual "back-tracking" for current process-path
+                    del pathTopology, infraValues, updatedInfraValues
+                    gc.collect()
 
-            for key, val in updatedInfraValues.items():
-                backcalc[key[0], key[1]] = max(
-                    backcalc[key[0], key[1]], val
-                )  # writing max-values to back-tracking array
+                if previewMode:
+                    # if the 'previewMode' is On/'True', then we check here if the current modeled process zones already
+                    # includes other release Cells (i.e. if release cells are "hit from above")
+                    # if this is the case, then we exclude the affected release cell(s) from further processing and update
+                    # the row_list, col_list variables containing the release cells that should be processed
+                    release[zDeltaArray > 0] = 0
+                    row_list, col_list = get_start_idx(dem, release)
 
-            del pathTopology, infraValues, updatedInfraValues
-            gc.collect()
+                zDeltaPathList.append(zDeltaPathArray)
+                del zDeltaPathArray
 
-        if previewMode:
-            # if the 'previewMode' is On/'True', then we check here if the current modeled process zones already
-            # includes other release Cells (i.e. if release cells are "hit from above")
-            # if this is the case, then we exclude the affected release cell(s) from further processing and update
-            # the row_list, col_list variables containing the release cells that should be processed
-            release[zDeltaArray > 0] = 0
-            row_list, col_list = get_start_idx(dem, release)
-
-        zDeltaPathList.append(zDeltaPathArray)
-        del cell_list, processedCells, zDeltaPathArray
+        del cellList, processedCells
 
         startcell_idx += 1
 
