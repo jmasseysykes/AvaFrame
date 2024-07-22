@@ -22,6 +22,7 @@ else:
     from multiprocessing import Pool
 
 from avaframe.com4FlowPy.flowClass import Cell
+from avaframe.com4FlowPy.flowPath import Path
 
 
 def get_start_idx(dem, release):
@@ -148,16 +149,26 @@ def run(optTuple):
     fluxDistOldVersionBool = optTuple[2]["fluxDistOldVersionBool"]
     previewMode = optTuple[2]["previewMode"]
     calcGeneration = optTuple[2]["calcGeneration"]
+    calcThalweg = optTuple[2]["calcThalweg"]
+    if calcThalweg:
+        thalwegDir = optTuple[3]["thalwegDir"]
+        thalwegCenterOf = optTuple[2]["thalwegCenterOf"]
+        thalwegVariables = optTuple[2]["thalwegVariables"]
+        thalwegParameters = {"thalwegDir": thalwegDir,
+                             "thalwegCenterOf": thalwegCenterOf,
+                             "thalwegVariables": thalwegVariables}
+    else:
+        thalwegParameters = None
 
     # Temp-Dir (all input files are located here and results are written back in here)
     tempDir = optTuple[3]["tempDir"]
+    
 
     # List of output layers
     outputs = optTuple[3]["outputFileList"]
 
     # raster-layer Attributes
-    cellsize = float(optTuple[4]["cellsize"])
-    nodata = float(optTuple[4]["nodata"])
+    rasterAttributes = optTuple[4]
 
     MPOptions = optTuple[6]  # CPU, Multiprocessing options ...
 
@@ -252,6 +263,8 @@ def run(optTuple):
                     forestParams,
                     outputs,
                     calcGeneration,
+                    calcThalweg, 
+                    thalwegParameters,
                 ]
                 for release_sub in release_list
             ],
@@ -390,6 +403,9 @@ def calculation(args):
         - args[14] (numpy array) - contains forest information (None if forestBool=False)
         - args[15] (dict) - contains parameters for forest interaction models (None if forestBool=False)
         - args[16] (list) - output names
+        - args[17] (bool) - flag for computing each generation 
+        - args[18] (bool) - flag for computing thalweg
+        - args[19] (dict) - thalweg parameters
 
     Returns
     -----------
@@ -458,6 +474,8 @@ def calculation(args):
     previewMode = args[13]
     outputs = args[16]
     calcGeneration = args[17]
+    calcThalweg = args[18]
+    thalwegParameters = args[19]
 
     if forestBool:
         forestArray = args[14]
@@ -559,6 +577,8 @@ def calculation(args):
                     if infraBool:
                         # if the current cell is not already in the dir-graph, then we add it here
                         updateInfraDirGraph(cell.rowindex, cell.colindex)     
+                    
+                    '''
                     # check if cell already exists
                     for i in range(len(cellList)):  # Check if Cell already exists
                         k = 0
@@ -578,6 +598,7 @@ def calculation(args):
                                 z_delta = np.delete(z_delta, k)
                             else:
                                 k += 1
+                    '''
 
                     for i in range(len(childList)):  # Check if Cell already exists in childList
                         k = 0
@@ -629,6 +650,10 @@ def calculation(args):
                     cellList = childList
                     genList.append(cellList)
                     childList = []
+
+            if calcThalweg:
+                path = Path(dem, row_list[startcell_idx], col_list[startcell_idx], genList, rasterAttributes)
+                path.calcAndSaveThalwegData(thalwegParameters)
 
             for gen, cellList in enumerate(genList):
                 # do we need to write the arrays here, or could we do that a step before?
