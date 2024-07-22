@@ -18,6 +18,7 @@ import pickle
 from multiprocessing import Pool
 
 from avaframe.com4FlowPy.flowClass import Cell
+from avaframe.com4FlowPy.flowPath import Path
 
 
 def get_start_idx(dem, release):
@@ -147,16 +148,26 @@ def run(optTuple):
     relIdBool = optTuple[2]["outputRelIdBool"]
     previewMode = optTuple[2]["previewMode"]
     calcGeneration = optTuple[2]["calcGeneration"]
+    calcThalweg = optTuple[2]["calcThalweg"]
+    if calcThalweg:
+        thalwegDir = optTuple[3]["thalwegDir"]
+        thalwegCenterOf = optTuple[2]["thalwegCenterOf"]
+        thalwegVariables = optTuple[2]["thalwegVariables"]
+        thalwegParameters = {"thalwegDir": thalwegDir,
+                             "thalwegCenterOf": thalwegCenterOf,
+                             "thalwegVariables": thalwegVariables}
+    else:
+        thalwegParameters = None
 
     # Temp-Dir (all input files are located here and results are written back in here)
     tempDir = optTuple[3]["tempDir"]
+    
 
     # List of output layers
     outputs = optTuple[3]["outputFileList"]
 
     # raster-layer Attributes
-    cellsize = float(optTuple[4]["cellsize"])
-    nodata = float(optTuple[4]["nodata"])
+    rasterAttributes = optTuple[4]
 
     MPOptions = optTuple[6]  # CPU, Multiprocessing options ...
 
@@ -264,6 +275,8 @@ def run(optTuple):
                     outputs,
                     relOutputParams,
                     calcGeneration,
+                    calcThalweg, 
+                    thalwegParameters,
                 ]
                 for release_sub in release_list
             ],
@@ -426,6 +439,9 @@ def calculation(args):
         - args[15] (dict) - contains parameters for forest interaction models (None if forestBool=False)
         - args[16] (list) - output names
         - args[17] (dict) - contains flags and rasters for release - information outputs
+        - args[18] (bool) - flag for computing each generation 
+        - args[19] (bool) - flag for computing thalweg
+        - args[20] (dict) - thalweg parameters
 
     Returns
     -----------
@@ -496,6 +512,8 @@ def calculation(args):
     relIdArray = args[17]["relIdArray"]
     relIdBool = args[17]["relIdBool"]
     calcGeneration = args[18]
+    calcThalweg = args[19]
+    thalwegParameters = args[20]
 
     if forestBool:
         forestArray = args[14]
@@ -722,6 +740,10 @@ def calculation(args):
                     cellList = childList
                     genList.append(cellList)
                     childList = []
+
+            if calcThalweg:
+                path = Path(dem, row_list[startcell_idx], col_list[startcell_idx], genList, rasterAttributes)
+                path.calcAndSaveThalwegData(thalwegParameters)
 
             for gen, cellList in enumerate(genList):
                 # do we need to write the arrays here, or could we do that a step before?
