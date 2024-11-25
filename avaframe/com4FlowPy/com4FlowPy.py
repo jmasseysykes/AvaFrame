@@ -263,7 +263,7 @@ def startLogging(modelParameters, forestParams, modelPaths, MPOptions):
     for param, value in MPOptions.items():
         log.info(f"{'%s:'%param : <20}{value : <5}")
         # log.info("{}:\t{}".format(param,value))
-    log.info("------------------------")
+        log.info("------------------------")
     log.info(f"{'WorkDir:' : <12}{'%s'%modelPaths['workDir'] : <5}")
     log.info(f"{'ResultsDir:' : <12}{'%s'%modelPaths['resDir'] : <5}")
     # log.info("WorkDir: {}".format(modelPaths["workDir"]))
