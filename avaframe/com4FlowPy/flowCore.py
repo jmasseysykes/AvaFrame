@@ -709,6 +709,8 @@ def calculation(args):
             fluxArray[cell.rowindex, cell.colindex] = max(fluxArray[cell.rowindex, cell.colindex], cell.flux)
             routFluxSumArray[cell.rowindex, cell.colindex] += cell.flux
             depFluxSumArray[cell.rowindex, cell.colindex] += cell.fluxDep
+            zDeltaSumArray[cell.rowindex, cell.colindex] += cell.z_delta
+
             zDeltaPathArray[cell.rowindex, cell.colindex] = max(
                 zDeltaPathArray[cell.rowindex, cell.colindex], cell.z_delta
             )
