@@ -362,7 +362,6 @@ def run(optTuple):
                 np.minimum(forestIntArray, forestIntList[i]),
                 np.maximum(forestIntArray, forestIntList[i]),
             )
-
         if "relIdPolygon" in outputs or "relIdCount" in outputs:
             for key in processedStartCellIdList[i]:
                 if key in processedStartCellIdDict:
@@ -376,6 +375,7 @@ def run(optTuple):
         pickle.dump(processedStartCellIdDict, saveDict)
         saveDict.close()
         del processedStartCellIdDict
+        
     # Save Calculated tiles
     np.save(tempDir / ("res_z_delta_%s_%s" % (optTuple[0], optTuple[1])), zDeltaArray)
     np.save(tempDir / ("res_z_delta_sum_%s_%s" % (optTuple[0], optTuple[1])), zDeltaSumArray)
@@ -388,6 +388,8 @@ def run(optTuple):
     np.save(tempDir / ("res_sl_%s_%s" % (optTuple[0], optTuple[1])), slTravelAngleArray)
     np.save(tempDir / ("res_travel_length_max_%s_%s" % (optTuple[0], optTuple[1])), travelLengthMaxArray)
     np.save(tempDir / ("res_travel_length_min_%s_%s" % (optTuple[0], optTuple[1])), travelLengthMinArray)
+    np.save(tempDir / ("res_relVol_max_%s_%s" % (optTuple[0], optTuple[1])), relVolMaxArray)
+    np.save(tempDir / ("res_relVol_min_%s_%s" % (optTuple[0], optTuple[1])), relVolMinArray)
     if infraBool:
         np.save(tempDir / ("res_backcalc_%s_%s" % (optTuple[0], optTuple[1])), backcalc)
     if forestInteraction:
@@ -534,6 +536,9 @@ def calculation(args):
     else:
         travelLengthMaxArray = None
 
+    relVolMinArray = np.ones_like(dem, dtype=np.float32) * -9999
+    relVolMaxArray = np.zeros_like(dem, dtype=np.float32)
+
     if infraBool:
         backcalc = np.ones_like(dem, dtype=np.int32) * -9999
     else:
@@ -553,6 +558,7 @@ def calculation(args):
     row_list, col_list = get_start_idx(dem, release)
 
     startcell_idx = 0
+    startCellIdDict = {}
     while startcell_idx < len(row_list):
 
         if infraBool:
@@ -641,6 +647,8 @@ def calculation(args):
                     if row[k] == cell_list[i].rowindex and col[k] == cell_list[i].colindex:
                         cell_list[i].add_os(flux[k])
                         cell_list[i].add_parent(cell)
+                        if relVolBool:
+                            cell_list[i].calc_startCellVol(startcellVol)
 
                         if infraBool:
                             updateInfraDirGraph(row[k], col[k], cell.rowindex, cell.colindex)
@@ -691,6 +699,7 @@ def calculation(args):
                         fluxDistOldVersionBool=fluxDistOldVersionBool,
                         FSI=forestArray[row[k], col[k]] if isinstance(forestArray, np.ndarray) else None,
                         forestParams=forestParams,
+                        startcellVol=startcellVol,
                     )
                 )
 
@@ -744,6 +753,18 @@ def calculation(args):
                 else:
                     forestIntArray[cell.rowindex, cell.colindex] = max(
                         forestIntArray[cell.rowindex, cell.colindex], cell.forestIntCount
+            if "relVolMax" in outputs:
+                relVolMaxArray[cell.rowindex, cell.colindex] = max(
+                    relVolMaxArray[cell.rowindex, cell.colindex], cell.startcellVolMax
+                )
+            if "relVolMin" in outputs:
+                if relVolMinArray[cell.rowindex, cell.colindex] >= 0 and cell.startcellVolMin >= 0:
+                    relVolMinArray[cell.rowindex, cell.colindex] = min(
+                        relVolMinArray[cell.rowindex, cell.colindex], cell.startcellVolMin
+                    )
+                else:
+                    relVolMinArray[cell.rowindex, cell.colindex] = max(
+                        relVolMinArray[cell.rowindex, cell.colindex], cell.startcellVolMin
                     )
 
         if infraBool:

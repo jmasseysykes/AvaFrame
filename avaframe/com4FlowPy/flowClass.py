@@ -80,6 +80,9 @@ class Cell:
         self._SQRT2 = np.sqrt(2.0)
         self._RAD90 = np.deg2rad(90.0)
 
+        self.startcellVolMin = startcellVol
+        self.startcellVolMax = startcellVol
+
         # NOTE: Forest Interaction included here
         # if FSI != None AND forestParams != None - then self.ForestBool = True and forestParams and
         # FSI are accordingly initialized
@@ -196,6 +199,10 @@ class Cell:
             # than the older one -> take minimum!
             if parent.forestIntCount < (self.forestIntCount - self.isForest):
                 self.forestIntCount = parent.forestIntCount + self.isForest
+
+    def calc_startCellVol(self, startcellVolNew):
+        self.startcellVolMin = min(self.startcellVolMin, startcellVolNew)
+        self.startcellVolMax = max(self.startcellVolMax, startcellVolNew)
 
     def calcDistMin(self, calc3D=False):
         """
