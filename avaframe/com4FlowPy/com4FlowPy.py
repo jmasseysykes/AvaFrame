@@ -194,7 +194,7 @@ def com4FlowPyMain(cfgPath, cfgSetup):
     rasterAttributes["nrows"] = demHeader["nrows"]
 
     # tile input layers and write tiles (pickled np.arrays) to temp Folder
-    nTiles, rasterAttributes = tileInputLayers(modelParameters, modelPaths, rasterAttributes, tilingParameters)
+    nTiles = tileInputLayers(modelParameters, modelPaths, rasterAttributes, tilingParameters)
 
     # now run the model for all tiles and save the results for each tile to the temp Folder
     performModelCalculation(nTiles, modelParameters, modelPaths, rasterAttributes, forestParams, MPOptions)
@@ -451,7 +451,7 @@ def tileInputLayers(modelParameters, modelPaths, rasterAttributes, tilingParamet
     log.info("---------------------")
 
     SPAM.tileRaster(modelPaths["demPath"], "dem", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
-    header = SPAM.tileRaster(modelPaths["releasePathWork"], "init", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U, isInit=True, returnHeader=True)
+    SPAM.tileRaster(modelPaths["releasePathWork"], "init", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U, isInit=True)
 
     if modelParameters["infraBool"]:
         SPAM.tileRaster(modelPaths["infraPath"], "infra", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
@@ -467,9 +467,8 @@ def tileInputLayers(modelParameters, modelPaths, rasterAttributes, tilingParamet
     log.info("==================================")
 
     nTiles = pickle.load(open(modelPaths["tempDir"] / "nTiles", "rb"))
-    rasterAttributes["crs"] = header["crs"]
 
-    return nTiles, rasterAttributes
+    return nTiles
 
 
 def performModelCalculation(nTiles, modelParameters, modelPaths, rasterAttributes, forestParams, MPOptions):
