@@ -167,7 +167,8 @@ def run(optTuple):
     outputs = optTuple[3]["outputFileList"]
 
     # raster-layer Attributes
-    rasterAttributes = optTuple[4]
+    cellsize = float(optTuple[4]["cellsize"])
+    nodata = float(optTuple[4]["nodata"])
 
     MPOptions = optTuple[6]  # CPU, Multiprocessing options ...
 
@@ -589,7 +590,6 @@ def calculation(args):
 
         processedCells = {}  # dictionary of cells that have been processed already
         zDeltaPathArray = np.zeros_like(dem, dtype=np.float32)
-        cell_list = []
         row_idx = row_list[startcell_idx]
         col_idx = col_list[startcell_idx]
         dem_ng = dem[row_idx - 1 : row_idx + 2, col_idx - 1 : col_idx + 2]  # neighbourhood DEM
@@ -716,6 +716,9 @@ def calculation(args):
                         # i.e. if nodata in the 3x3 neighbourhood --> no calculation
                         if (nodata in dem_ng) or np.size(dem_ng) < 9:
                             continue
+                        if infraBool:
+                            updateInfraDirGraph(row[k], col[k], cell.rowindex, cell.colindex)
+
 
                         # if the current child cell is already in processedCells
                         # just add +1 to the visit-counter, else add it to the
@@ -806,35 +809,29 @@ def calculation(args):
                         else:
                             forestIntArray[cell.rowindex, cell.colindex] = max(forestIntArray[cell.rowindex, cell.colindex],
                                                                             cell.forestIntCount)
-                    if infraBool:
-                        # if 'infraBool' is True - i.e. calculation is performed with infrastructure information
-                        # then we perform the back-tracking of the stored directed graph (topology and node values)
+            if infraBool:
+                # if 'infraBool' is True - i.e. calculation is performed with infrastructure information
+                # then we perform the back-tracking of the stored directed graph (topology and node values)
 
-                        updatedInfraValues = backTracking(pathTopology, infraValues) # actual "back-tracking" for current process-path
+                updatedInfraValues = backTracking(pathTopology, infraValues) # actual "back-tracking" for current process-path
 
-                        for key, val in updatedInfraValues.items():
-                            backcalc[key[0], key[1]] = max(backcalc[key[0], key[1]], val) # writing max-values to back-tracking array
+                for key, val in updatedInfraValues.items():
+                    backcalc[key[0], key[1]] = max(backcalc[key[0], key[1]], val) # writing max-values to back-tracking array
 
-                        del pathTopology, infraValues, updatedInfraValues
-                        gc.collect()
-
-                    if previewMode:
-                        # if the 'previewMode' is On/'True', then we check here if the current modeled process zones already
-                        # includes other release Cells (i.e. if release cells are "hit from above")
-                        # if this is the case, then we exclude the affected release cell(s) from further processing and update
-                        # the row_list, col_list variables containing the release cells that should be processed
-                        release[zDeltaArray > 0] = 0
-                        row_list, col_list = get_start_idx(dem, release)
-
-                    zDeltaPathList.append(zDeltaPathArray)
-                    del processedCells, zDeltaPathArray
-
-                    startcell_idx += 1
-
-                for zDeltaPathArray in zDeltaPathList:
-                    zDeltaSumArray += zDeltaPathArray
-                
+                del pathTopology, infraValues, updatedInfraValues
                 gc.collect()
+
+            if previewMode:
+                # if the 'previewMode' is On/'True', then we check here if the current modeled process zones already
+                # includes other release Cells (i.e. if release cells are "hit from above")
+                # if this is the case, then we exclude the affected release cell(s) from further processing and update
+                # the row_list, col_list variables containing the release cells that should be processed
+                release[zDeltaArray > 0] = 0
+                row_list, col_list = get_start_idx(dem, release)
+
+            zDeltaPathList.append(zDeltaPathArray)
+            del processedCells
+            zDeltaPathArray = np.zeros_like(dem, dtype=np.float32)
 
         else:
             cellList = []
@@ -983,36 +980,36 @@ def calculation(args):
                         forestIntArray[cell.rowindex, cell.colindex] = max(
                             forestIntArray[cell.rowindex, cell.colindex], cell.forestIntCount
                             )
-                if infraBool:
-                    # if 'infraBool' is True - i.e. calculation is performed with infrastructure information
-                    # then we perform the back-tracking of the stored directed graph (topology and node values)
+            if infraBool:
+                # if 'infraBool' is True - i.e. calculation is performed with infrastructure information
+                # then we perform the back-tracking of the stored directed graph (topology and node values)
 
-                    updatedInfraValues = backTracking(
-                        pathTopology, infraValues
-                    ) # actual "back-tracking" for current process-path
+                updatedInfraValues = backTracking(
+                    pathTopology, infraValues
+                ) # actual "back-tracking" for current process-path
 
-                    for key, val in updatedInfraValues.items():
-                        backcalc[key[0], key[1]] = max(
-                            backcalc[key[0], key[1]], val
-                        ) # writing max-values to back-tracking array
+                for key, val in updatedInfraValues.items():
+                    backcalc[key[0], key[1]] = max(
+                        backcalc[key[0], key[1]], val
+                    ) # writing max-values to back-tracking array
 
-                    del pathTopology, infraValues, updatedInfraValues
-                    gc.collect()
+                del pathTopology, infraValues, updatedInfraValues
+                gc.collect()
 
-                if previewMode:
-                    # if the 'previewMode' is On/'True', then we check here if the current modeled process zones already
-                    # includes other release Cells (i.e. if release cells are "hit from above")
-                    # if this is the case, then we exclude the affected release cell(s) from further processing and update
-                    # the row_list, col_list variables containing the release cells that should be processed
-                    release[zDeltaArray > 0] = 0
-                    row_list, col_list = get_start_idx(dem, release)
+            if previewMode:
+                # if the 'previewMode' is On/'True', then we check here if the current modeled process zones already
+                # includes other release Cells (i.e. if release cells are "hit from above")
+                # if this is the case, then we exclude the affected release cell(s) from further processing and update
+                # the row_list, col_list variables containing the release cells that should be processed
+                release[zDeltaArray > 0] = 0
+                row_list, col_list = get_start_idx(dem, release)
 
-                zDeltaPathList.append(zDeltaPathArray)
-                del zDeltaPathArray
-
-        del cellList, processedCells
+            zDeltaPathList.append(zDeltaPathArray)
+            del cellList, processedCells
+            zDeltaPathArray = np.zeros_like(dem, dtype=np.float32)
 
         startcell_idx += 1
+           
 
     for zDeltaPathArray in zDeltaPathList:
         zDeltaSumArray += zDeltaPathArray

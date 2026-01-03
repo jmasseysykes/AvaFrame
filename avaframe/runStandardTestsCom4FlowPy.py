@@ -8,6 +8,8 @@ import time
 import pathlib
 import numpy as np
 import rasterio
+from datetime import datetime
+import os
 
 # Local imports
 from avaframe.com4FlowPy import com4FlowPy
@@ -36,7 +38,7 @@ def compare(path, pathRef):
 
 
 # Which result types for comparison plots
-outputVariable = ['FP_travel_angle', 'z_delta']
+outputVariable = ['fpTravelAngleMax', 'zdelta']
 
 # log file name; leave empty to use default runLog.log
 logName = 'runStandardTestsCom4FlowPy'
@@ -103,6 +105,11 @@ for test in testList:
     cfgPath["tempDir"] = cfgPath["workDir"] / "temp"
     fU.makeADir(cfgPath["tempDir"])
     cfgPath["deleteTemp"] = "False"
+    cfgPath["outputFiles"] = cfg["PATHS"]["outputFiles"]
+    cfgPath["outputNoDataValue"] = cfg["PATHS"].getfloat("outputNoDataValue")
+    cfgPath["useCompression"] = cfg["PATHS"].getboolean("useCompression")
+    cfgPath["uid"] = cfgUtils.cfgHash(cfg)
+    cfgPath["timeString"] = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Set timing
     startTime = time.time()
@@ -113,8 +120,25 @@ for test in testList:
     log.info(('Took %s seconds to calculate.' % (timeNeeded)))
 
     for variable in outputVariable:
-        pathRasterRef = refDir / ('%s.tif' % variable)
-        pathRaster = compDir / ('%s.tif' % variable)
+
+        for file in os.listdir(refDir):
+            print(file)
+            if file.endswith('%s.tif' % variable):
+                pathRasterRef = refDir / file
+                break
+            else:
+                continue
+        if os.path.isfile(pathRasterRef) is False:
+            raise FileExistsError("in %s does not exist a file for variable %s" %(refDir, variable))
+        
+        for file in os.listdir(compDir):
+            if file.endswith('%s.tif' % variable):
+                pathRaster = compDir / file
+                break
+            else:
+                continue
+        if os.path.isfile(pathRaster) is False:
+            raise FileExistsError("in %s does not exist a file for variable %s" %(compDir, variable))
         diff, eq, close = compare(pathRaster, pathRasterRef)
 
         if eq and np.sum(abs(diff[diff != 0])) == 0:
