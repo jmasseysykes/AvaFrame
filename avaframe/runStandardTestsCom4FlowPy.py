@@ -38,7 +38,7 @@ def compare(path, pathRef):
 
 
 # Which result types for comparison plots
-outputVariable = ['fpTravelAngleMax', 'zdelta']
+outputVariable = ['fpTravelAngleMax', 'zDelta', 'flux', 'cellCounts']
 
 # log file name; leave empty to use default runLog.log
 logName = 'runStandardTestsCom4FlowPy'
