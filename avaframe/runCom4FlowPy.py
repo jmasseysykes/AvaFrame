@@ -107,12 +107,12 @@ def main(avalancheDir=""):
         if successToJSON is True:
             log.info("wrote config to {}/{}.json".format(cfgPath["outDir"], uid))
         else:
-            log.info("could not write  config to {}/{}.json".format(cfgPath["outDir"], uid))
+            log.info("could not write config to {}/{}.json".format(cfgPath["outDir"], uid))
             log.error("Exception occurred: %s", str(successToJSON), exc_info=True)
 
         if cfgSetup["calcThalweg"] == "True":
             cfgPath["thalwegDir"] = cfgPath["resDir"] / "thalwegData"
-            fU.makeADir(cfgPath["thalwegDir"])            
+            fU.makeADir(cfgPath["thalwegDir"])
         else:
             cfgPath["thalwegDir"] = ""
         cfgPath["deleteTemp"] = "False"

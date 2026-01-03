@@ -38,7 +38,7 @@ def compare(path, pathRef):
 
 
 # Which result types for comparison plots
-outputVariable = ['fpTravelAngleMax', 'zdelta']
+outputVariable = ['fpTravelAngleMax', 'zDelta', 'flux', 'cellCounts']
 
 # log file name; leave empty to use default runLog.log
 logName = 'runStandardTestsCom4FlowPy'
@@ -142,10 +142,10 @@ for test in testList:
         diff, eq, close = compare(pathRaster, pathRasterRef)
 
         if eq and np.sum(abs(diff[diff != 0])) == 0:
-            message = f'{test['NAME']}: for {variable}: rasters are equal \n'
+            message = f"{test['NAME']}: for {variable}: rasters are equal \n"
         else:
-            message = f'{test['NAME']}: for {variable}: rasters are *NOT* equal, but {np.round(close, 4) * 100}% \
-            of the affected area is close (relative tolerance: 10^-4) \n'
+            message = f"{test['NAME']}: for {variable}: rasters are *NOT* equal, but {np.round(close, 4) * 100}% \
+            of the affected area is close (relative tolerance: 10^-4) \n"
         log.info(message)
         with open(reportFile, 'a') as pfile:
            pfile.write(message)

@@ -109,7 +109,7 @@ def com4FlowPyMain(cfgPath, cfgSetup):
     if modelPaths["outputFileFormat"] in [".asc", ".ASC"]:
         modelPaths["outputFileFormat"] = ".asc"
     else:
-        modelPaths["outputFileFormat"] = '.tif'
+        modelPaths["outputFileFormat"] = ".tif"
     modelPaths["thalwegDir"] = cfgPath["thalwegDir"]
 
     # check if 'customDirs' are used - alternative is 'default' AvaFrame Folder Structure
@@ -432,8 +432,10 @@ def checkInputParameterValues(modelParameters, modelPaths):
         rasterValues = data["rasterData"]
         rasterValues[rasterValues < 0] = np.nan  # handle different noData values
         if np.any(rasterValues > 90, where=~np.isnan(rasterValues)):
-            log.error("Error: Not all Alpha-raster values are within a physically sensible range ([0,90]),\
-                 in respective startcells the general alpha angle is used.")
+            log.error(
+                "Error: Not all Alpha-raster values are within a physically sensible range ([0,90]),\
+                 in respective startcells the general alpha angle is used."
+            )
             _checkVarParams = False
 
     if modelParameters["varUmaxBool"]:
@@ -495,7 +497,9 @@ def tileInputLayers(modelParameters, modelPaths, rasterAttributes, tilingParamet
     log.info("---------------------")
 
     SPAM.tileRaster(modelPaths["demPath"], "dem", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
-    SPAM.tileRaster(modelPaths["releasePathWork"], "init", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U, isInit=True)
+    SPAM.tileRaster(
+        modelPaths["releasePathWork"], "init", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U, isInit=True
+    )
 
     if modelParameters["infraBool"]:
         SPAM.tileRaster(modelPaths["infraPath"], "infra", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
