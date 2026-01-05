@@ -171,6 +171,7 @@ def run(optTuple):
     outputs = optTuple[3]["outputFileList"]
 
     # raster-layer Attributes
+    rasterAttributes = optTuple[4]
     cellsize = float(optTuple[4]["cellsize"])
     nodata = float(optTuple[4]["nodata"])
 
@@ -259,8 +260,7 @@ def run(optTuple):
                     exp,
                     flux_threshold,
                     max_z_delta,
-                    nodata,
-                    cellsize,
+                    rasterAttributes,
                     infraBool,
                     forestBool,
                     varParams,
@@ -401,20 +401,19 @@ def calculation(args):
         - args[4] (float) - exponent
         - args[5] (float) - threshold of minimum flux
         - args[6] (float) - maximum of zDelta
-        - args[7] (float) - nodata values of rasters
-        - args[8] (float) - cellsize of rasters
-        - args[9] (bool) -  flag for calculation with/without infrastructure
-        - args[10] (bool) - flag for calculation with/without forest
-        - args[11] (dict) - contains flags and numpy arrays for variable input parameters (Alpha, exp, uMax)
-        - args[12] (bool) - flag for computing flux distribution with old version
-        - args[13] (bool) - flag for previewMode / fast Calculation
+        - args[7] (float) - raster attributes
+        - args[8] (bool) -  flag for calculation with/without infrastructure
+        - args[9] (bool) - flag for calculation with/without forest
+        - args[10] (dict) - contains flags and numpy arrays for variable input parameters (Alpha, exp, uMax)
+        - args[11] (bool) - flag for computing flux distribution with old version
+        - args[12] (bool) - flag for previewMode / fast Calculation
 
-        - args[14] (numpy array) - contains forest information (None if forestBool=False)
-        - args[15] (dict) - contains parameters for forest interaction models (None if forestBool=False)
-        - args[16] (list) - output names
-        - args[17] (bool) - flag for computing each generation
-        - args[18] (bool) - flag for computing thalweg
-        - args[19] (dict) - thalweg parameters
+        - args[13] (numpy array) - contains forest information (None if forestBool=False)
+        - args[14] (dict) - contains parameters for forest interaction models (None if forestBool=False)
+        - args[15] (list) - output names
+        - args[16] (bool) - flag for computing each generation
+        - args[17] (bool) - flag for computing thalweg
+        - args[18] (dict) - thalweg parameters
 
     Returns
     -----------
@@ -469,26 +468,27 @@ def calculation(args):
     exp = args[4]
     flux_threshold = args[5]
     max_z_delta = args[6]
-    nodata = args[7]
-    cellsize = args[8]
-    infraBool = args[9]
-    forestBool = args[10]
-    varUmaxBool = args[11]["varUmaxBool"]
-    varUmaxArray = args[11]["varUmaxArray"]
-    varAlphaBool = args[11]["varAlphaBool"]
-    varAlphaArray = args[11]["varAlphaArray"]
-    varExponentBool = args[11]["varExponentBool"]
-    varExponentArray = args[11]["varExponentArray"]
-    fluxDistOldVersionBool = args[12]
-    previewMode = args[13]
-    outputs = args[16]
-    calcGeneration = args[17]
-    calcThalweg = args[18]
-    thalwegParameters = args[19]
+    rasterAttributes = args[7]
+    cellsize = rasterAttributes["cellsize"]
+    nodata = rasterAttributes["nodata"]
+    infraBool = args[8]
+    forestBool = args[9]
+    varUmaxBool = args[10]["varUmaxBool"]
+    varUmaxArray = args[10]["varUmaxArray"]
+    varAlphaBool = args[10]["varAlphaBool"]
+    varAlphaArray = args[10]["varAlphaArray"]
+    varExponentBool = args[10]["varExponentBool"]
+    varExponentArray = args[10]["varExponentArray"]
+    fluxDistOldVersionBool = args[11]
+    previewMode = args[12]
+    outputs = args[15]
+    calcGeneration = args[16]
+    calcThalweg = args[17]
+    thalwegParameters = args[18]
 
     if forestBool:
-        forestArray = args[14]
-        forestParams = args[15]
+        forestArray = args[13]
+        forestParams = args[14]
         forestInteraction = forestParams["forestInteraction"]
     else:
         forestInteraction = False

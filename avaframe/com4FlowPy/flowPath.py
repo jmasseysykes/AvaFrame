@@ -1,11 +1,12 @@
 import numpy as np
 import pickle
 
+
 class Path:
-    '''Class contains a path, containing one startcell  and corresponding child cells'''
+    """Class contains a path, containing one startcell and corresponding child cells"""
 
     def __init__(self, dem, startcellRow, startcellCol, genList, rasterAttributes):
-        """ initializes a GMF path, that belongs to a startcell
+        """initializes a GMF path, that belongs to a startcell
 
         Parameters
         ----------
@@ -25,7 +26,7 @@ class Path:
         self.xllcorner = rasterAttributes["xllcenter"] - self.cellsize / 2
         self.yllcorner = rasterAttributes["yllcenter"] - self.cellsize / 2
         self.nrows = rasterAttributes["nrows"]
-        self.crs = rasterAttributes["crs"]
+        # self.crs = rasterAttributes["crs"]
 
         self.alpha = genList[0][0].alpha
         self.exp = genList[0][0].exp
@@ -47,7 +48,7 @@ class Path:
         self.colGeneration = []
         self.altitudeGeneration = []
         self.gammaGeneration = []
-        #self.pathArea = 0
+        # self.pathArea = 0
         self.flux_gen = []
 
         self.zDeltaArray = np.zeros_like(self.dem, dtype=np.float32)
@@ -55,10 +56,10 @@ class Path:
         self.fluxArray = np.zeros_like(self.dem, dtype=np.float32)
         self.routFluxSumArray = np.zeros_like(self.dem, dtype=np.float32)
         self.depFluxSumArray = np.zeros_like(self.dem, dtype=np.float32)
-        '''
+        """
         self.travel_length_array = np.zeros_like(self.dem, dtype=np.float32)
         self.generation_array = np.full_like(self.dem, np.nan, dtype=np.float32)
-        '''
+        """
 
     def indizesToCoords(self, cols, rows):
         """calculates the row and column indices to the x and y coordinates
@@ -79,14 +80,13 @@ class Path:
         """
         x = cols * self.cellsize + self.xllcorner
         y = self.yllcorner + (self.nrows - rows) * self.cellsize
-        return x,y
-
+        return x, y
 
     def getVariablesGeneration(self):
-        '''write lists with size and format of genList containing specific parameters
-            (the main list contains lists for every generation)
-            TODO: only calculate 'important'/output arrays
-        '''
+        """write lists with size and format of genList containing specific parameters
+        (the main list contains lists for every generation)
+        TODO: only calculate 'important'/output arrays
+        """
         for cellList in self.genList:
             cellListZDelta = []
             cellListFlux = []
@@ -108,7 +108,7 @@ class Path:
                 cellListCol.append(cell.colindex)
                 cellListAlt.append(cell.altitude)
                 cellListGamma.append(cell.max_gamma)
-                #cellListFlux_gen.append(cell.flux_generation)
+                # cellListFlux_gen.append(cell.flux_generation)
 
             self.zDeltaGeneration.append(cellListZDelta)
             self.fluxGeneration.append(cellListFlux)
@@ -119,30 +119,34 @@ class Path:
             self.colGeneration.append(cellListCol)
             self.altitudeGeneration.append(cellListAlt)
             self.gammaGeneration.append(cellListGamma)
-            #self.flux_gen.append(cellListFlux_gen)
-        
-    
+            # self.flux_gen.append(cellListFlux_gen)
+
     def getPathArrays(self):
-        '''write arrays with size of dem containing the maximum of the variable values of every path
-           value 0 means, the path does not hit the cell
-           TODO: only calculate 'important'/output arrays
-        '''      
+        """write arrays with size of dem containing the maximum of the variable values of every path
+        value 0 means, the path does not hit the cell
+        TODO: only calculate 'important'/output arrays
+        """
         for gen, cellList in enumerate(self.genList):
             for cell in cellList:
-                self.zDeltaArray[cell.rowindex, cell.colindex] = max(self.zDeltaArray[cell.rowindex, cell.colindex], cell.z_delta)
-                self.flowEnergyArray[cell.rowindex, cell.colindex] = max(self.flowEnergyArray[cell.rowindex, cell.colindex], cell.flowEnergy)
-                self.fluxArray[cell.rowindex, cell.colindex] = max(self.fluxArray[cell.rowindex, cell.colindex], cell.flux)
+                self.zDeltaArray[cell.rowindex, cell.colindex] = max(
+                    self.zDeltaArray[cell.rowindex, cell.colindex], cell.z_delta
+                )
+                self.flowEnergyArray[cell.rowindex, cell.colindex] = max(
+                    self.flowEnergyArray[cell.rowindex, cell.colindex], cell.flowEnergy
+                )
+                self.fluxArray[cell.rowindex, cell.colindex] = max(
+                    self.fluxArray[cell.rowindex, cell.colindex], cell.flux
+                )
                 self.routFluxSumArray[cell.rowindex, cell.colindex] += cell.flux
                 self.depFluxSumArray[cell.rowindex, cell.colindex] += cell.fluxDep
 
-                '''
+                """
                 self.travel_length_array[cell.rowindex, cell.colindex] = max(self.travel_length_array[cell.rowindex, cell.colindex], cell.min_distance)
                 self.generation_array[cell.rowindex, cell.colindex] = gen
-                '''
+                """
 
-    
     def calcThalwegCenterof(self, variable, variableCo):
-        '''calculates for a specific variable the center of a specific variable (thalweg)
+        """calculates for a specific variable the center of a specific variable (thalweg)
 
         Parameters
         ----------
@@ -157,23 +161,22 @@ class Path:
             sum of variable per generation
         coVar: numpy array
             centered variable (per generation)
-        '''
+        """
         coVar = np.zeros(len(self.genList))
         variableSum = np.zeros(len(self.genList))
-        for gen in range(0,len(self.genList)):
+        for gen in range(0, len(self.genList)):
             var = np.array(variable[gen])
             co = np.array(variableCo[gen])
             variableSum[gen] = np.sum(var)
             variableCoSum = np.sum(co)
-            if variableCoSum > 0: # flow_energy is 0 in generation 0
+            if variableCoSum > 0:  # flow_energy is 0 in generation 0
                 coVar[gen] = 1 / variableCoSum * np.sum(var * co)
             else:
                 coVar[gen] = np.sum(var)
         return variableSum, coVar
 
-
     def getCenterofs(self, variables):
-        '''
+        """
         calculate sum of variable for every iteration step/ generation and
         center of energy, flux and zDelta for the following variables:
 
@@ -181,42 +184,55 @@ class Path:
         ----------
         variables: list
             List of variables that should be weighted (with center of energy and flux)
-        '''
-              
+        """
+
         self.getVariablesGeneration()
 
         for varName in variables:
-            if varName in ['s', 'z', 'x', 'y' , 'flowEnergyArray', 'zDeltaArray', 'fluxArray', 'routFluxSumArray', 'depFluxSumArray']:
+            if varName in [
+                "s",
+                "z",
+                "x",
+                "y",
+                "flowEnergyArray",
+                "zDeltaArray",
+                "fluxArray",
+                "routFluxSumArray",
+                "depFluxSumArray",
+            ]:
                 continue
-            if varName == 'depFluxSum':
-                variables.append('depFlux')
+            if varName == "depFluxSum":
+                variables.append("depFlux")
                 continue
-            if varName == 'fluxSum':
-                variables.append('flux')
+            if varName == "fluxSum":
+                variables.append("flux")
                 continue
 
-            values = getattr(self, f'{varName}Generation')
-            sumF, coF = self.calcThalwegCenterof(values, self.fluxGeneration) # center of flux of every variable
-            sumE, coE = self.calcThalwegCenterof(values, self.flowEnergyGeneration) # center of energy of every variable
-            sumZd, coZd = self.calcThalwegCenterof(values, self.zDeltaGeneration) # center of energy of every variable
+            values = getattr(self, f"{varName}Generation")
+            sumF, coF = self.calcThalwegCenterof(
+                values, self.fluxGeneration
+            )  # center of flux of every variable
+            sumE, coE = self.calcThalwegCenterof(
+                values, self.flowEnergyGeneration
+            )  # center of energy of every variable
+            sumZd, coZd = self.calcThalwegCenterof(
+                values, self.zDeltaGeneration
+            )  # center of energy of every variable
 
-            setattr(self, f'{varName}SumCoE', sumE)
-            setattr(self, f'{varName}CoF', coF)
-            setattr(self, f'{varName}CoE', coE)
-            setattr(self, f'{varName}CoZd', coZd)
-
+            setattr(self, f"{varName}SumCoE", sumE)
+            setattr(self, f"{varName}CoF", coF)
+            setattr(self, f"{varName}CoE", coE)
+            setattr(self, f"{varName}CoZd", coZd)
 
     def calcAlphaEff(self, s, z):
-        """ Compute the effective alpha angle of the thalweg
-        """
+        """Compute the effective alpha angle of the thalweg"""
         dz = z[0] - z[-1]
         ds = s[-1] - s[0]
         if ds > 0:
-            alphaEff = np.rad2deg(np.arctan(dz/ds))
+            alphaEff = np.rad2deg(np.arctan(dz / ds))
         else:
             alphaEff = np.nan
         return alphaEff
-
 
     def saveDict(self, saveDir, centerOfs, variables):
         """
@@ -231,47 +247,55 @@ class Path:
         variables: list
             contains the variable names that are saved
         """
-        thalwegData = {'alpha': round(self.alpha,1),
-                    'exponent': self.exp,
-                    'zDeltaMax': round(self.maxZDelta,1),
-                    'crs': self.crs,
-                    'numberGen': self.numberGen,
-                    }
+        thalwegData = {
+            "alpha": round(self.alpha, 1),
+            "exponent": self.exp,
+            "zDeltaMax": round(self.maxZDelta, 1),
+            # 'crs': self.crs,
+            "numberGen": self.numberGen,
+        }
         variables = variables
         centerOfs = centerOfs
-        
+
         for co in centerOfs:
             for varName in variables:
-                if varName in ['x', 'y']:
+                if varName in ["x", "y"]:
                     # compute x and y coordinates of thalweg
-                    x, y = self.indizesToCoords(getattr(self, f'col{co}'), getattr(self, f'row{co}'))
-                    setattr(self, f'x{co}', x)
-                    setattr(self, f'y{co}', y) 
+                    x, y = self.indizesToCoords(getattr(self, f"col{co}"), getattr(self, f"row{co}"))
+                    setattr(self, f"x{co}", x)
+                    setattr(self, f"y{co}", y)
 
-                if varName in ['flowEnergyArray', 'zDeltaArray', 'fluxArray', 'routFluxSumArray', 'depFluxSumArray']:
-                    if np.any(getattr(self, f'{varName}')) == False:
+                if varName in [
+                    "flowEnergyArray",
+                    "zDeltaArray",
+                    "fluxArray",
+                    "routFluxSumArray",
+                    "depFluxSumArray",
+                ]:
+                    if np.any(getattr(self, f"{varName}")) == False:
                         self.getPathArrays()
-                    value = getattr(self, f'{varName}')
-                elif varName == 'z':
-                    value = getattr(self, f'altitude{co}')
-                elif varName == 's':
-                    value = getattr(self, f'travelLength{co}')
+                    value = getattr(self, f"{varName}")
+                elif varName == "z":
+                    value = getattr(self, f"altitude{co}")
+                elif varName == "s":
+                    value = getattr(self, f"travelLength{co}")
                 else:
-                    value = getattr(self, f'{varName}{co}')
-                thalwegData[f'{varName}'] = value
+                    value = getattr(self, f"{varName}{co}")
+                thalwegData[f"{varName}"] = value
 
-            if 'travelLength' in variables and 'altitude' in variables:
+            if "travelLength" in variables and "altitude" in variables:
                 # compute and save effective alpha angle
-                alpha = self.calcAlphaEff(getattr(self, f'travelLength{co}'), getattr(self, f'altitude{co}'))
-                thalwegData[f'alphaEff'] = alpha
+                alpha = self.calcAlphaEff(getattr(self, f"travelLength{co}"), getattr(self, f"altitude{co}"))
+                thalwegData[f"alphaEff"] = alpha
 
-            with open(saveDir / (f"thalwegData_{co}_{self.startcellRow}_{self.startcellCol}.pickle"), 'wb') as handle:
+            with open(
+                    saveDir / (f"thalwegData_{co}_{self.startcellRow}_{self.startcellCol}.pickle"), "wb"
+            ) as handle:
                 pickle.dump(thalwegData, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
 
     def calcAndSaveThalwegData(self, thalwegParameters):
         """main function for paths & thalwegs: calculates the thalweg and saves the data
-        
+
         Parameters:
         ------------
         thalwegParameters: dict
@@ -283,22 +307,21 @@ class Path:
         centerOfs = []
         for co in cos:
             co.lower()
-            if co in ['energy', 'coe']:
-                centerOf = 'CoE'
-            elif co in ['flux', 'cof']:
-                centerOf = 'CoF'
-            elif co in ['zdelta', 'cozd']:
-                centerOf = 'CoZd'
+            if co in ["energy", "coe"]:
+                centerOf = "CoE"
+            elif co in ["flux", "cof"]:
+                centerOf = "CoF"
+            elif co in ["zdelta", "cozd"]:
+                centerOf = "CoZd"
             centerOfs.append(centerOf)
 
+        if "s" in variables:
+            variables.append("travelLength")
+        if "z" in variables:
+            variables.append("altitude")
+        if "x" in variables or "y" in variables:
+            variables.append("col")
+            variables.append("row")
 
-        if 's' in variables:
-            variables.append('travelLength')
-        if 'z' in variables:
-            variables.append('altitude')
-        if 'x' in variables or 'y' in variables:
-            variables.append('col')
-            variables.append('row')
-        
         self.getCenterofs(variables)
         self.saveDict(saveDir, centerOfs, variables)
