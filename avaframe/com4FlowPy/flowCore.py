@@ -725,7 +725,13 @@ def calculation(args):
                             travelLengthMinArray[cell.rowindex, cell.colindex] = max(
                                 travelLengthMinArray[cell.rowindex, cell.colindex], cell.min_distance
                             )
-                    if processedCells[(cell.rowindex, cell.colindex)] >= 1:
+                    # TODO: why does the cell count not work as without generation-computation?
+                    if processedCells[(cell.rowindex, cell.colindex)] == 1:
+                        countArray[cell.rowindex, cell.colindex] += int(1)
+                    elif (
+                            processedCells[(cell.rowindex, cell.colindex)] > 1
+                            and countArray[cell.rowindex, cell.colindex] <= 0
+                    ):
                         countArray[cell.rowindex, cell.colindex] += int(1)
 
                     if forestInteraction:
@@ -866,7 +872,6 @@ def calculation(args):
                         travelLengthMinArray[cell.rowindex, cell.colindex] = max(
                             travelLengthMinArray[cell.rowindex, cell.colindex], cell.min_distance
                         )
-                # TODO: also here >= 1 instead of == 1 ?
                 if processedCells[(cell.rowindex, cell.colindex)] == 1:
                     countArray[cell.rowindex, cell.colindex] += int(1)
 
