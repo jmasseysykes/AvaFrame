@@ -680,19 +680,8 @@ def calculation(args):
                                 forestParams=forestParams,
                             )
                         )
-                if len(childList) > 0:
-                    cellList = childList
-                    genList.append(cellList)
-                    childList = []
 
-            if calcThalweg:
-                path = Path(dem, row_list[startcell_idx], col_list[startcell_idx], genList, rasterAttributes)
-                path.calcAndSaveThalwegData(thalwegParameters)
-
-            for gen, cellList in enumerate(genList):
-                # TODO: put this in an extra function?
-                # TODO: do we need to write the arrays here, or could we do that a step before?
-                for cell in cellList:
+                    # TODO: writing arrays in a separate function?
                     routFluxSumArray[cell.rowindex, cell.colindex] += cell.flux
                     depFluxSumArray[cell.rowindex, cell.colindex] += cell.fluxDep
                     zDeltaArray[cell.rowindex, cell.colindex] = max(
@@ -736,7 +725,7 @@ def calculation(args):
                             travelLengthMinArray[cell.rowindex, cell.colindex] = max(
                                 travelLengthMinArray[cell.rowindex, cell.colindex], cell.min_distance
                             )
-                    if processedCells[(cell.rowindex, cell.colindex)] == 1:
+                    if processedCells[(cell.rowindex, cell.colindex)] >= 1:
                         countArray[cell.rowindex, cell.colindex] += int(1)
 
                     if forestInteraction:
@@ -748,6 +737,15 @@ def calculation(args):
                             forestIntArray[cell.rowindex, cell.colindex] = max(
                                 forestIntArray[cell.rowindex, cell.colindex], cell.forestIntCount
                             )
+
+                if len(childList) > 0:
+                    cellList = childList
+                    genList.append(cellList)
+                    childList = []
+
+            if calcThalweg:
+                path = Path(dem, row_list[startcell_idx], col_list[startcell_idx], genList, rasterAttributes)
+                path.calcAndSaveThalwegData(thalwegParameters)
 
         else:
             cellList = []
@@ -868,6 +866,7 @@ def calculation(args):
                         travelLengthMinArray[cell.rowindex, cell.colindex] = max(
                             travelLengthMinArray[cell.rowindex, cell.colindex], cell.min_distance
                         )
+                # TODO: also here >= 1 instead of == 1 ?
                 if processedCells[(cell.rowindex, cell.colindex)] == 1:
                     countArray[cell.rowindex, cell.colindex] += int(1)
 
@@ -915,6 +914,7 @@ def calculation(args):
 
     gc.collect()
 
+    # TODO: return as dictionary
     if forestInteraction:
         return (
             zDeltaArray,

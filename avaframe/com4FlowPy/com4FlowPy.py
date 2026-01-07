@@ -54,7 +54,9 @@ def com4FlowPyMain(cfgPath, cfgSetup):
     # Flow-Py parameters
     modelParameters["alpha"] = cfgSetup.getfloat("alpha")  # float(cfgSetup["alpha"])
     modelParameters["exp"] = cfgSetup.getfloat("exp")  # float(cfgSetup["exp"])
-    modelParameters["flux_threshold"] = cfgSetup.getfloat("flux_threshold")  # float(cfgSetup["flux_threshold"])
+    modelParameters["flux_threshold"] = cfgSetup.getfloat(
+        "flux_threshold"
+    )  # float(cfgSetup["flux_threshold"])
     modelParameters["max_z"] = cfgSetup.getfloat("max_z")  # float(cfgSetup["max_z"])
 
     # Flags for use of Forest and/or Infrastructure
@@ -98,15 +100,15 @@ def com4FlowPyMain(cfgPath, cfgSetup):
     modelPaths["tempDir"] = cfgPath["tempDir"]
     modelPaths["uid"] = cfgPath["uid"]
     modelPaths["timeString"] = cfgPath["timeString"]
-    modelPaths["outputFileList"] = cfgPath["outputFiles"].split('|')
+    modelPaths["outputFileList"] = cfgPath["outputFiles"].split("|")
     modelPaths["outputNoDataValue"] = cfgPath["outputNoDataValue"]
     modelPaths["useCompression"] = cfgPath["useCompression"]
 
     modelPaths["outputFileFormat"] = cfgPath["outputFileFormat"]
     if modelPaths["outputFileFormat"] in [".asc", ".ASC"]:
-        modelPaths["outputFileFormat"] = '.asc'
+        modelPaths["outputFileFormat"] = ".asc"
     else:
-        modelPaths["outputFileFormat"] = '.tif'
+        modelPaths["outputFileFormat"] = ".tif"
     modelPaths["thalwegDir"] = cfgPath["thalwegDir"]
 
     # check if 'customDirs' are used - alternative is 'default' AvaFrame Folder Structure
@@ -117,9 +119,15 @@ def com4FlowPyMain(cfgPath, cfgSetup):
     # Multiprocessing Options
     MPOptions = {}
     MPOptions["nCPU"] = cfgSetup.getint("cpuCount")  # int(cfgSetup["cpuCount"]) #number of CPUs to use
-    MPOptions["procPerCPU"] = cfgSetup.getint("procPerCPUCore")  # int(cfgSetup["procPerCPUCore"]) #processes per core
-    MPOptions["chunkSize"] = cfgSetup.getint("chunkSize")  # int(cfgSetup["chunkSize"]) # default task size for MP
-    MPOptions["maxChunks"] = cfgSetup.getint("maxChunks")  # int(cfgSetup["maxChunks"]) # max number of tasks for MP
+    MPOptions["procPerCPU"] = cfgSetup.getint(
+        "procPerCPUCore"
+    )  # int(cfgSetup["procPerCPUCore"]) #processes per core
+    MPOptions["chunkSize"] = cfgSetup.getint(
+        "chunkSize"
+    )  # int(cfgSetup["chunkSize"]) # default task size for MP
+    MPOptions["maxChunks"] = cfgSetup.getint(
+        "maxChunks"
+    )  # int(cfgSetup["maxChunks"]) # max number of tasks for MP
 
     # check if calculation with infrastructure
     if modelParameters["infraBool"]:
@@ -134,12 +142,24 @@ def com4FlowPyMain(cfgPath, cfgSetup):
         forestParams["forestModule"] = cfgSetup.get("forestModule")
         modelPaths["forestPath"] = cfgPath["forestPath"]
         # 'forestFriction' and 'forestDetrainment' parameters
-        forestParams["maxAddedFriction"] = cfgSetup.getfloat("maxAddedFrictionFor")  # float(cfgSetup["maxAddedFr.."])
-        forestParams["minAddedFriction"] = cfgSetup.getfloat("minAddedFrictionFor")  # float(cfgSetup["minAddedFr.."])
-        forestParams["velThForFriction"] = cfgSetup.getfloat("velThForFriction")  # float(cfgSetup["velThForFriction"])
-        forestParams["maxDetrainment"] = cfgSetup.getfloat("maxDetrainmentFor")  # float(cfgSetup["maxDetrainmentFor"])
-        forestParams["minDetrainment"] = cfgSetup.getfloat("minDetrainmentFor")  # float(cfgSetup["minDetrainmentFor"])
-        forestParams["velThForDetrain"] = cfgSetup.getfloat("velThForDetrain")  # float(cfgSetup["velThForDetrain"])
+        forestParams["maxAddedFriction"] = cfgSetup.getfloat(
+            "maxAddedFrictionFor"
+        )  # float(cfgSetup["maxAddedFr.."])
+        forestParams["minAddedFriction"] = cfgSetup.getfloat(
+            "minAddedFrictionFor"
+        )  # float(cfgSetup["minAddedFr.."])
+        forestParams["velThForFriction"] = cfgSetup.getfloat(
+            "velThForFriction"
+        )  # float(cfgSetup["velThForFriction"])
+        forestParams["maxDetrainment"] = cfgSetup.getfloat(
+            "maxDetrainmentFor"
+        )  # float(cfgSetup["maxDetrainmentFor"])
+        forestParams["minDetrainment"] = cfgSetup.getfloat(
+            "minDetrainmentFor"
+        )  # float(cfgSetup["minDetrainmentFor"])
+        forestParams["velThForDetrain"] = cfgSetup.getfloat(
+            "velThForDetrain"
+        )  # float(cfgSetup["velThForDetrain"])
         # 'forestFrictionLayer' parameter
         forestParams["fFrLayerType"] = cfgSetup.get("forestFrictionLayerType")
         # skipForestDist - no forest friciton effect assumed while distance along path <= skipForestDist
@@ -318,7 +338,10 @@ def checkInputLayerDimensions(modelParameters, modelPaths):
 
         if modelParameters["forestBool"]:
             _forestHeader = IOf.readRasterHeader(modelPaths["forestPath"])
-            if _demHeader["ncols"] == _forestHeader["ncols"] and _demHeader["nrows"] == _forestHeader["nrows"]:
+            if (
+                    _demHeader["ncols"] == _forestHeader["ncols"]
+                    and _demHeader["nrows"] == _forestHeader["nrows"]
+            ):
                 log.info("Forest Layer ok!")
             else:
                 log.error("Error: Forest Layer doesn't match DEM!")
@@ -326,7 +349,10 @@ def checkInputLayerDimensions(modelParameters, modelPaths):
 
         if modelParameters["varUmaxBool"]:
             _varUmaxHeader = IOf.readRasterHeader(modelPaths["varUmaxPath"])
-            if _demHeader["ncols"] == _varUmaxHeader["ncols"] and _demHeader["nrows"] == _varUmaxHeader["nrows"]:
+            if (
+                    _demHeader["ncols"] == _varUmaxHeader["ncols"]
+                    and _demHeader["nrows"] == _varUmaxHeader["nrows"]
+            ):
                 log.info("uMax Limit Layer ok!")
             else:
                 log.error("Error: uMax Limit Layer doesn't match DEM!")
@@ -334,7 +360,10 @@ def checkInputLayerDimensions(modelParameters, modelPaths):
 
         if modelParameters["varAlphaBool"]:
             _varAlphaHeader = IOf.readRasterHeader(modelPaths["varAlphaPath"])
-            if _demHeader["ncols"] == _varAlphaHeader["ncols"] and _demHeader["nrows"] == _varAlphaHeader["nrows"]:
+            if (
+                    _demHeader["ncols"] == _varAlphaHeader["ncols"]
+                    and _demHeader["nrows"] == _varAlphaHeader["nrows"]
+            ):
                 log.info("variable Alpha Layer ok!")
             else:
                 log.error("Error: variable Alpha Layer doesn't match DEM!")
@@ -342,7 +371,10 @@ def checkInputLayerDimensions(modelParameters, modelPaths):
 
         if modelParameters["varExponentBool"]:
             _varExponentHeader = IOf.readRasterHeader(modelPaths["varExponentPath"])
-            if _demHeader["ncols"] == _varExponentHeader["ncols"] and _demHeader["nrows"] == _varExponentHeader["nrows"]:
+            if (
+                    _demHeader["ncols"] == _varExponentHeader["ncols"]
+                    and _demHeader["nrows"] == _varExponentHeader["nrows"]
+            ):
                 log.info("variable exponent Layer ok!")
             else:
                 log.error("Error: variable exponent Layer doesn't match DEM!")
@@ -351,8 +383,10 @@ def checkInputLayerDimensions(modelParameters, modelPaths):
         log.info("========================")
 
     except Exception as ex:
-        log.error("could not read all required Input Layers, please re-check files and paths provided in .ini files")
-        log.error('Error occured: %s' % ex)
+        log.error(
+            "could not read all required Input Layers, please re-check files and paths provided in .ini files"
+        )
+        log.error("Error occured: %s" % ex)
         # return
         sys.exit(1)
 
@@ -368,17 +402,17 @@ def checkInputParameterValues(modelParameters, modelPaths):
     modelPaths: dict
         contains paths to input files
     """
-    alpha = modelParameters['alpha']
-    if (alpha < 0 or alpha > 90):
+    alpha = modelParameters["alpha"]
+    if alpha < 0 or alpha > 90:
         log.error("Error: Alpha value is not within a physically sensible range ([0,90]).")
         sys.exit(1)
 
-    zDelta = modelParameters['max_z']
-    if (zDelta < 0 or zDelta > 8848):
+    zDelta = modelParameters["max_z"]
+    if zDelta < 0 or zDelta > 8848:
         log.error("Error: zDeltaMaxLimit value is not within a physically sensible range ([0,8848]).")
         sys.exit(1)
 
-    exp = modelParameters['exp']
+    exp = modelParameters["exp"]
     if exp < 0:
         log.error("Error: Exponent value is not within a physically sensible range (> 0).")
         sys.exit(1)
@@ -387,24 +421,28 @@ def checkInputParameterValues(modelParameters, modelPaths):
 
     if modelParameters["varAlphaBool"]:
         data = IOf.readRaster(modelPaths["varAlphaPath"])
-        rasterValues = data["rasterData"] 
+        rasterValues = data["rasterData"]
         rasterValues[rasterValues < 0] = np.nan  # handle different noData values
         if np.any(rasterValues > 90, where=~np.isnan(rasterValues)):
-            log.error("Error: Not all Alpha-raster values are within a physically sensible range ([0,90]),\
-                 in respective startcells the general alpha angle is used.")
+            log.error(
+                "Error: Not all Alpha-raster values are within a physically sensible range ([0,90]),\
+                 in respective startcells the general alpha angle is used."
+            )
             _checkVarParams = False
 
     if modelParameters["varUmaxBool"]:
         data = IOf.readRaster(modelPaths["varUmaxPath"])
-        rasterValues = data["rasterData"] 
+        rasterValues = data["rasterData"]
         rasterValues[rasterValues < 0] = np.nan
-        if modelParameters["varUmaxType"].lower() == 'umax':
+        if modelParameters["varUmaxType"].lower() == "umax":
             _maxVal = 1500  # ~sqrt(8848*2*9.81)
         else:
             _maxVal = 8848
         if np.any(rasterValues > _maxVal, where=~np.isnan(rasterValues)):
-            log.error("Error: Not all zDeltaMaxLimit-raster values are within a physically sensible range \
-                ([0, 8848 m] or [0, 1500 m/s]), in respective startcells the general zDeltaMax value is used.")
+            log.error(
+                "Error: Not all zDeltaMaxLimit-raster values are within a physically sensible range \
+                ([0, 8848 m] or [0, 1500 m/s]), in respective startcells the general zDeltaMax value is used."
+            )
             _checkVarParams = False
 
     if _checkVarParams:
@@ -451,16 +489,24 @@ def tileInputLayers(modelParameters, modelPaths, rasterAttributes, tilingParamet
     log.info("---------------------")
 
     SPAM.tileRaster(modelPaths["demPath"], "dem", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
-    SPAM.tileRaster(modelPaths["releasePathWork"], "init", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U, isInit=True)
+    SPAM.tileRaster(
+        modelPaths["releasePathWork"], "init", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U, isInit=True
+    )
 
     if modelParameters["infraBool"]:
         SPAM.tileRaster(modelPaths["infraPath"], "infra", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
     if modelParameters["varUmaxBool"]:
-        SPAM.tileRaster(modelPaths["varUmaxPath"], "varUmax", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
+        SPAM.tileRaster(
+            modelPaths["varUmaxPath"], "varUmax", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
+        )
     if modelParameters["varAlphaBool"]:
-        SPAM.tileRaster(modelPaths["varAlphaPath"], "varAlpha", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
+        SPAM.tileRaster(
+            modelPaths["varAlphaPath"], "varAlpha", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
+        )
     if modelParameters["varExponentBool"]:
-        SPAM.tileRaster(modelPaths["varExponentPath"], "varExponent", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
+        SPAM.tileRaster(
+            modelPaths["varExponentPath"], "varExponent", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
+        )
     if modelParameters["forestBool"]:
         SPAM.tileRaster(modelPaths["forestPath"], "forest", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
     log.info("Finished Tiling All Input Rasters.")
@@ -523,7 +569,7 @@ def mergeAndWriteResults(modelPaths, modelOptions):
         contains model input parameters (from .ini - file)
     """
     _uid = modelPaths["uid"]
-    _outputs = set(modelPaths['outputFileList'])
+    _outputs = set(modelPaths["outputFileList"])
     _outputNoDataValue = modelPaths["outputNoDataValue"]
 
     log.info(" merging results ...")
@@ -546,7 +592,7 @@ def mergeAndWriteResults(modelPaths, modelOptions):
         backcalc = SPAM.mergeRaster(modelPaths["tempDir"], "res_backcalc")
 
     if modelOptions["forestInteraction"]:
-        forestInteraction = SPAM.mergeRaster(modelPaths["tempDir"], "res_forestInt", method='min')
+        forestInteraction = SPAM.mergeRaster(modelPaths["tempDir"], "res_forestInt", method="min")
 
     # Write Output Files to Disk
     log.info("-------------------------")
@@ -566,7 +612,7 @@ def mergeAndWriteResults(modelPaths, modelOptions):
 
     useCompression = modelPaths["useCompression"]
 
-    if 'flux' in _outputs:
+    if "flux" in _outputs:
         flux = defineNotAffectedCells(flux, cellCounts, noDataValue=_outputNoDataValue)
         output = IOf.writeResultToRaster(
             outputHeader,
@@ -575,7 +621,7 @@ def mergeAndWriteResults(modelPaths, modelOptions):
             flip=True,
             useCompression=useCompression,
         )
-    if 'zDelta' in _outputs:
+    if "zDelta" in _outputs:
         zDelta = defineNotAffectedCells(zDelta, cellCounts, noDataValue=_outputNoDataValue)
         output = IOf.writeResultToRaster(
             outputHeader,
@@ -584,7 +630,7 @@ def mergeAndWriteResults(modelPaths, modelOptions):
             flip=True,
             useCompression=useCompression,
         )
-    if 'cellCounts' in _outputs:
+    if "cellCounts" in _outputs:
         cellCounts = defineNotAffectedCells(cellCounts, cellCounts, noDataValue=_outputNoDataValue)
         output = IOf.writeResultToRaster(
             outputHeader,
@@ -593,7 +639,7 @@ def mergeAndWriteResults(modelPaths, modelOptions):
             flip=True,
             useCompression=useCompression,
         )
-    if 'zDeltaSum' in _outputs:
+    if "zDeltaSum" in _outputs:
         zDeltaSum = defineNotAffectedCells(zDeltaSum, cellCounts, noDataValue=_outputNoDataValue)
         output = IOf.writeResultToRaster(
             outputHeader,
@@ -602,7 +648,7 @@ def mergeAndWriteResults(modelPaths, modelOptions):
             flip=True,
             useCompression=useCompression,
         )
-    if 'routFluxSum' in _outputs:
+    if "routFluxSum" in _outputs:
         routFluxSum = defineNotAffectedCells(routFluxSum, cellCounts, noDataValue=_outputNoDataValue)
         output = IOf.writeResultToRaster(
             outputHeader,
@@ -611,7 +657,7 @@ def mergeAndWriteResults(modelPaths, modelOptions):
             flip=True,
             useCompression=useCompression,
         )
-    if 'depFluxSum' in _outputs:
+    if "depFluxSum" in _outputs:
         depFluxSum = defineNotAffectedCells(depFluxSum, cellCounts, noDataValue=_outputNoDataValue)
         output = IOf.writeResultToRaster(
             outputHeader,
@@ -638,7 +684,7 @@ def mergeAndWriteResults(modelPaths, modelOptions):
             flip=True,
             useCompression=useCompression,
         )
-    if 'slTravelAngle' in _outputs:
+    if "slTravelAngle" in _outputs:
         slTa = defineNotAffectedCells(slTa, cellCounts, noDataValue=_outputNoDataValue)
         output = IOf.writeResultToRaster(
             outputHeader,
@@ -712,11 +758,13 @@ def checkConvertReleaseShp2Tif(modelPaths):
 
         dem = IOf.readRaster(modelPaths["demPath"])
         demHeader = dem["header"]
-        dem['originalHeader'] = demHeader
+        dem["originalHeader"] = demHeader
 
         releaseLine = shpConv.SHP2Array(modelPaths["releasePath"], "releasePolygon")
         thresholdPointInPoly = 0.01
-        releaseLine = gT.prepareArea(releaseLine, dem, thresholdPointInPoly, combine=True, checkOverlap=False)
+        releaseLine = gT.prepareArea(
+            releaseLine, dem, thresholdPointInPoly, combine=True, checkOverlap=False
+        )
         # give the same header as the dem
         releaseArea = np.flipud(releaseLine["rasterData"])
         if demHeader["driver"] == "AAIGrid":
