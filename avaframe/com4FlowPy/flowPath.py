@@ -5,7 +5,7 @@ import pickle
 class Path:
     """Class contains a path, containing one startcell and corresponding child cells"""
 
-    def __init__(self, dem, startcellRow, startcellCol, genList, rasterAttributes):
+    def __init__(self, dem, startcellRow, startcellCol, genList, rasterAttributes, relId=None):
         """initializes a GMF path, that belongs to a startcell
 
         Parameters
@@ -35,6 +35,7 @@ class Path:
         self.startcellRow = startcellRow
         self.startcellCol = startcellCol
         self.numberGen = len(genList)
+        self.relId = int(relId)
 
         self.dropHeight = 0
         self.travelLength = 0
@@ -170,7 +171,8 @@ class Path:
             variableSum[gen] = np.sum(var)
             variableCoSum = np.sum(co)
             if variableCoSum > 0:  # flow_energy is 0 in generation 0
-                coVar[gen] = 1 / variableCoSum * np.sum(var * co)
+                # coVar[gen] = 1 / variableCoSum * np.sum(var * co)
+                coVar[gen] = np.average(var, weights=co)
             else:
                 coVar[gen] = np.sum(var)
         return variableSum, coVar
@@ -221,8 +223,9 @@ class Path:
 
             setattr(self, f"{varName}SumCoE", sumE)
             setattr(self, f"{varName}CoF", coF)
-            setattr(self, f"{varName}CoE", coE)
-            setattr(self, f"{varName}CoZd", coZd)
+            # zdelta is 0 in generation 1, so the first value does not make sense
+            setattr(self, f"{varName}CoE", coE[1:])
+            setattr(self, f"{varName}CoZd", coZd[1:])
 
     def calcAlphaEff(self, s, z):
         """Compute the effective alpha angle of the thalweg"""
@@ -288,9 +291,11 @@ class Path:
                 alpha = self.calcAlphaEff(getattr(self, f"travelLength{co}"), getattr(self, f"altitude{co}"))
                 thalwegData[f"alphaEff"] = alpha
 
-            with open(
-                    saveDir / (f"thalwegData_{co}_{self.startcellRow}_{self.startcellCol}.pickle"), "wb"
-            ) as handle:
+            if self.relId is None:
+                outName = f"thalwegData_{co}_{self.startcellRow}_{self.startcellCol}.pickle"
+            else:
+                outName = f"thalwegData_{co}_{self.relId}.pickle"
+            with open(saveDir / (outName), "wb") as handle:
                 pickle.dump(thalwegData, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def calcAndSaveThalwegData(self, thalwegParameters):

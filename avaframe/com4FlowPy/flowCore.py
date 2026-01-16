@@ -14,6 +14,7 @@ import gc
 import psutil
 import time
 import pickle
+from itertools import zip_longest
 
 from multiprocessing import Pool
 
@@ -21,9 +22,10 @@ from avaframe.com4FlowPy.flowClass import Cell
 from avaframe.com4FlowPy.flowPath import Path
 
 
-def get_start_idx(dem, release):
+def get_start_idx(dem, release, relIdArray=None, calcThalweg=False):
     """Sort Release Pixels by altitude and return the result as lists for the
     Rows and Columns, starting with the highest altitude
+    If releaseIds are provided, sort by release Id to ensure that segmented PRA is computed after each other.
 
     Parameters
     -----------
@@ -31,6 +33,10 @@ def get_start_idx(dem, release):
         Digital Elevation Model to gain information about altitude
     release: numpy array
         The release layer, release pixels need int value > 0
+    relIdArray: numpy array
+        release Ids
+    calcThalweg: bool
+        flag if thalweg is computed
 
     Returns
     -----------
@@ -42,16 +48,25 @@ def get_start_idx(dem, release):
     row_list, col_list = np.where(release > 0)  # Gives back the indices of the release areas
     if len(row_list) > 0:
         altitude_list = []
+        relIdList = []
         for i in range(len(row_list)):
             altitude_list.append(dem[row_list[i], col_list[i]])
+            if relIdArray is not None and calcThalweg:
+                relIdList.append(relIdArray[row_list[i], col_list[i]])
+        # Sort this lists by altitude
         altitude_list, row_list, col_list = list(
             zip(*sorted(zip(altitude_list, row_list, col_list), reverse=True))
         )
-        # Sort this lists by altitude
+        # sort this list by releaseId
+        if relIdArray is not None and calcThalweg:
+            relIdList, row_list, col_list = list(
+                zip(*sorted(zip(relIdList, row_list, col_list), reverse=True))
+            )
+
     return row_list, col_list
 
 
-def split_release(release, pieces):
+def split_release(release, pieces, relIdArray, calcThalweg):
     """Split the release layer in several tiles. The area is determined by
     the number of release pixels in it, so that every tile has the same amount
     of release pixels in it.
@@ -67,12 +82,20 @@ def split_release(release, pieces):
     The release tiles have still the size of the original layer, so no split
     for the DEM is needed.
 
+    If thalweg is computed, and release Ids are provided, cells belonging to one
+    release Ids are not divided into separate release_lists (for different chunks),
+    so the thalweg can be computed for one segmented PRA.
+
     Parameters
     -----------
     release: np.array
         a binary 0|1 array with release pixels designated by '1'
     pieces:  int
         number of chunck in which the release layer should be split
+    relIdArray: numpy array
+        release Ids of segmented relase areas
+    calcThalweg: bool
+        flag if thalweg is calculated
 
     Returns
     -----------
@@ -80,33 +103,63 @@ def split_release(release, pieces):
         contains the tiles(arrays) [array0, array1, ..]
     """
 
-    # Flatten the array and compute the cumulative sum
-    flat_release = release.flatten()
-    cumulative_sum = np.cumsum(flat_release)
+    if calcThalweg and relIdArray is not None:
+        # release split for thalweg computation
 
-    total_sum = cumulative_sum[-1]
-    sum_per_split = total_sum / pieces
+        uniqueIds, counts = np.unique(relIdArray[release == 1], return_counts=True)
 
-    release_list = []
-    start_index = 0
+        pieces = np.minimum(pieces, len(uniqueIds))
 
-    for i in range(1, pieces):
-        # Find the split point in the flattened array
-        split_index = np.searchsorted(cumulative_sum, sum_per_split * i)
+        idCount = list(zip(uniqueIds, counts))
+        idCount.sort(key=lambda x: x[1], reverse=True)
 
-        # Create a new array for this split
+        # prepare lists for ids and number of cells
+        _numberCells = np.zeros(pieces, dtype=int)
+        _ids = [[] for _ in range(pieces)]
+
+        # add relId to this chunk that has less cells yet
+        for id, count in idCount:
+            idx = np.argmin(_numberCells)
+            _ids[idx].append(id)
+            _numberCells[idx] += count
+
+        # write release cells
+        release_list = []
+        for idsChunk in _ids:
+            release_piece = np.zeros_like(release, dtype=release.dtype)
+            if idsChunk:
+                id_piece = np.isin(relIdArray, idsChunk)
+                release_piece[id_piece] = release[id_piece]
+            release_list.append(release_piece)
+
+    else:
+        # Flatten the array and compute the cumulative sum
+        flat_release = release.flatten()
+        cumulative_sum = np.cumsum(flat_release)
+
+        total_sum = cumulative_sum[-1]
+        sum_per_split = total_sum / pieces
+
+        release_list = []
+        start_index = 0
+
+        for i in range(1, pieces):
+            # Find the split point in the flattened array
+            split_index = np.searchsorted(cumulative_sum, sum_per_split * i)
+
+            # Create a new array for this split
+            split_flat = np.zeros_like(flat_release)
+            split_flat[start_index:split_index] = flat_release[start_index:split_index]
+
+            # Reshape the flat array back to 2D and add to the list
+            release_list.append(split_flat.reshape(release.shape))
+
+            start_index = split_index
+
+        # Handle the last piece
         split_flat = np.zeros_like(flat_release)
-        split_flat[start_index:split_index] = flat_release[start_index:split_index]
-
-        # Reshape the flat array back to 2D and add to the list
+        split_flat[start_index:] = flat_release[start_index:]
         release_list.append(split_flat.reshape(release.shape))
-
-        start_index = split_index
-
-    # Handle the last piece
-    split_flat = np.zeros_like(flat_release)
-    split_flat[start_index:] = flat_release[start_index:]
-    release_list.append(split_flat.reshape(release.shape))
 
     return release_list
 
@@ -248,7 +301,7 @@ def run(optTuple):
         chunkSize=MPOptions["chunkSize"],
     )
 
-    release_list = split_release(release, nChunks)
+    release_list = split_release(release, nChunks, relIdArray, calcThalweg)
     log.info(
         "Multiprocessing starts, used Cores/Processes/Chunks: %i/%i/%i"
         % (MPOptions["nCPU"], nProcesses, nChunks)
@@ -470,6 +523,7 @@ def calculation(args):
         minimum of the count a forested cell is hit (only returned if args[18]["forestInteraction"]==True)
 
     """
+    log = logging.getLogger(__name__)
 
     # helper function for backTracking, a bit slower than inline but improves
     # readability by avoiding repetitions
@@ -578,8 +632,9 @@ def calculation(args):
 
     # Core
     # NOTE-TODO: row_list, col_list are tuples - rethink variable naming
-    row_list, col_list = get_start_idx(dem, release)
+    row_list, col_list = get_start_idx(dem, release, relIdArray, calcThalweg)
 
+    generationListRelId = []
     startcell_idx = 0
     startCellIdDict = {}
     while startcell_idx < len(row_list):
@@ -647,9 +702,9 @@ def calculation(args):
                     if relIdBool:
                         if (cell.rowindex, cell.colindex) in startCellIdDict:
                             startcellIdList = np.append(
-                                startCellIdDict[(cell.rowindex, cell.colindex)], startcellId)
-                            startCellIdDict[(cell.rowindex, cell.colindex)] = np.unique(
-                                startcellIdList)
+                                startCellIdDict[(cell.rowindex, cell.colindex)], startcellId
+                            )
+                            startCellIdDict[(cell.rowindex, cell.colindex)] = np.unique(startcellIdList)
                         else:
                             startCellIdDict[(cell.rowindex, cell.colindex)] = np.array([startcellId])
 
@@ -837,7 +892,37 @@ def calculation(args):
                     genList.append(cellList)
                     childList = []
 
-            if calcThalweg:
+            if calcThalweg and relIdBool:
+                # zip the generationLists within one release Id
+                generationListRelId = [
+                    (generationThisCell or []) + (generationBefore or [])
+                    for generationThisCell, generationBefore in zip_longest(generationListRelId, genList)
+                ]
+
+                # check if the next startcell has the same startcellId
+                if startcell_idx + 1 < len(row_list):
+                    nextRowIdx = row_list[startcell_idx + 1]
+                    nextColIdx = col_list[startcell_idx + 1]
+                    lastStartcell = False
+                else:
+                    # if this was the last startcell, we also want to compute the thalweg!
+                    lastStartcell = True
+                if startcellId != relIdArray[nextRowIdx, nextColIdx] or lastStartcell:
+                    # TODO: now, for the path rowIdx and colIdx do not make sense!!
+                    log.info(f"Finished computing PRA with ID {startcellId}. Start computing its thalweg!")
+                    path = Path(
+                        dem,
+                        row_list[startcell_idx],
+                        col_list[startcell_idx],
+                        generationListRelId,
+                        rasterAttributes,
+                        startcellId,
+                    )
+                    path.calcAndSaveThalwegData(thalwegParameters)
+                    generationListRelId = []
+                    log.info(f"Finished computing thalweg of PRA with ID {startcellId}.")
+
+            elif calcThalweg:
                 path = Path(dem, row_list[startcell_idx], col_list[startcell_idx], genList, rasterAttributes)
                 path.calcAndSaveThalwegData(thalwegParameters)
 
@@ -853,12 +938,12 @@ def calculation(args):
                 if relIdBool:
                     if (cell.rowindex, cell.colindex) in startCellIdDict:
                         startcellIdList = np.append(
-                            startCellIdDict[(cell.rowindex, cell.colindex)], startcellId)
-                        startCellIdDict[(cell.rowindex, cell.colindex)] = np.unique(
-                            startcellIdList)
+                            startCellIdDict[(cell.rowindex, cell.colindex)], startcellId
+                        )
+                        startCellIdDict[(cell.rowindex, cell.colindex)] = np.unique(startcellIdList)
                     else:
                         startCellIdDict[(cell.rowindex, cell.colindex)] = np.array([startcellId])
-                        
+
                 row, col, flux, z_delta = cell.calc_distribution()
 
                 if len(flux) > 0:
@@ -1020,7 +1105,7 @@ def calculation(args):
             # if this is the case, then we exclude the affected release cell(s) from further processing and update
             # the row_list, col_list variables containing the release cells that should be processed
             release[zDeltaArray > 0] = 0
-            row_list, col_list = get_start_idx(dem, release)
+            row_list, col_list = get_start_idx(dem, release, relIdArray, calcThalweg)
 
         zDeltaPathList.append(zDeltaPathArray)
         del processedCells, zDeltaPathArray
