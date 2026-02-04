@@ -916,6 +916,7 @@ def calculation(args):
                         col_list[startcell_idx],
                         generationListRelId,
                         rasterAttributes,
+                        countArray,
                         startcellId,
                     )
                     path.calcAndSaveThalwegData(thalwegParameters)
@@ -923,7 +924,14 @@ def calculation(args):
                     log.info(f"Finished computing thalweg of PRA with ID {startcellId}.")
 
             elif calcThalweg:
-                path = Path(dem, row_list[startcell_idx], col_list[startcell_idx], genList, rasterAttributes)
+                path = Path(
+                    dem,
+                    row_list[startcell_idx],
+                    col_list[startcell_idx],
+                    genList,
+                    rasterAttributes,
+                    countArray,
+                )
                 path.calcAndSaveThalwegData(thalwegParameters)
 
         else:

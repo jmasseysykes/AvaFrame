@@ -464,7 +464,7 @@ def extendProfileTop(extTopOption, particlesIni, profile):
     return profile
 
 
-def extendProfileBottom(cfg, dem, profile):
+def extendProfileBottom(cfg, dem, profile, considerLLC=False):
     """ extend the DFA path at the bottom (runout area)
 
     Find the direction in which to extend considering the last point of the profile
@@ -485,6 +485,8 @@ def extendProfileBottom(cfg, dem, profile):
         dem dict
     profile: dict
         profile to extend
+    considerLLC: bool
+        If True, the lower left corner coordinates are considered when getting z coordinates
 
     Returns
     --------
@@ -493,6 +495,10 @@ def extendProfileBottom(cfg, dem, profile):
     """
     header = dem['header']
     csz = header['cellsize']
+    if considerLLC:
+        # compute center coordinates of lower left cell
+        xllcenter = header['xllcorner'] + csz / 2
+        yllcenter = header['yllcorner'] + csz / 2
     zRaster = dem['rasterData']
     # get last point
     xLast = profile['x'][-1]
@@ -523,7 +529,10 @@ def extendProfileBottom(cfg, dem, profile):
         xExtBottom = np.array([xLast + gamma * vDirX])
         yExtBottom = np.array([yLast + gamma * vDirY])
         # project on DEM
-        zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz)
+        if considerLLC:
+            zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter)
+        else:
+            zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz)
         # Dicothomie method to find the last point on the extention and on the dem
         if np.isnan(zExtBottom):
             factExt = factExt/2
@@ -541,7 +550,11 @@ def extendProfileBottom(cfg, dem, profile):
             xExtBottom = np.array([xLast + gamma * vDirX])
             yExtBottom = np.array([yLast + gamma * vDirY])
             # project on DEM
-            zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz)
+            if considerLLC:
+                zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz, xllc=xllcenter,
+                                                 yllc=yllcenter)
+            else:
+                zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz)
             stepSize = stepSize/2
             if np.isnan(zExtBottom):
                 factExt = factExt - stepSize
@@ -559,7 +572,12 @@ def extendProfileBottom(cfg, dem, profile):
             xExtBottom = np.array([xLast + gamma * vDirX])
             yExtBottom = np.array([yLast + gamma * vDirY])
             # project on DEM
-            zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz)
+            if considerLLC:
+                zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz, xllc=xllcenter,
+                                                 yllc=yllcenter)
+            else:
+                zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz)
+
         log.info('found extention after %d iterations, precision is %.2f m' % (count, stepSize * sLast))
 
         # extend profile
