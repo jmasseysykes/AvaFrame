@@ -1,10 +1,13 @@
 import numpy as np
 import pickle
+import logging
 
 import avaframe.ana5Utils.DFAPathGeneration as DFAPathGeneration
 from avaframe.in3Utils import cfgUtils
 from avaframe.ana5Utils import DFAPathGeneration
 import avaframe.in3Utils.geoTrans as gT
+
+log = logging.getLogger(__name__)
 
 
 class Path:
@@ -152,6 +155,53 @@ class Path:
             self.gammaGeneration.append(cellListGamma)
             # self.flux_gen.append(cellListFlux_gen)
 
+    def getGenerationList(self, variable, generation=None):
+        """write lists with size and format of genList containing specific parameters
+        (the main list contains lists for every generation)
+
+        Parameters
+        -----------
+        variable: string
+            for the variable is the generation list created
+        generation: int
+            generation that is extracted (if None, all generations are added)
+        """
+
+        variableGeneration = []
+        if generation is None:
+            for cellList in self.genList:
+                listVariable = self.getListFromCellList(cellList, variable)
+                variableGeneration.append(listVariable)
+        else:
+            cellList = self.genList[generation]
+            variableGeneration = self.getListFromCellList(cellList, variable)
+        return variableGeneration
+
+    def getListFromCellList(self, cellList, variable):
+        listVariable = []
+
+        for cell in cellList:
+            if variable == "zDelta":
+                listVariable.append(cell.z_delta)
+            elif variable == "flux":
+                listVariable.append(cell.flux)
+            elif variable in ["travelLength", "s"]:
+                listVariable.append(cell.min_distance)
+            elif variable in ["altitude", "z"]:
+                listVariable.append(cell.altitude)
+            elif variable == "row":
+                listVariable.append(cell.rowindex)
+            elif variable == "col":
+                listVariable.append(cell.colindex)
+            elif variable == "gamma":
+                listVariable.append(cell.max_gamma)
+            elif variable == "flowEnergy":
+                listVariable.append(cell.flowEnergy)
+            else:
+                log.error(f"variable {variable} can not be computed to a generation list")
+        return listVariable
+
+
     def getPathArrays(self):
         """write arrays with size of dem containing the maximum of the variable values of every path
         value 0 means, the path does not hit the cell
@@ -208,7 +258,7 @@ class Path:
                 coVar[gen] = np.average(var)
         return variableSum, coVar
 
-    def getCenterofs(self, variables):
+    def getCenterofs(self, variables, centerOfs):
         """
         calculate sum of variable for every iteration step/ generation and
         center of energy, flux and zDelta for the following variables:
@@ -219,8 +269,7 @@ class Path:
             List of variables that should be weighted (with center of energy and flux)
         """
 
-        self.getVariablesGeneration()
-        # self.extendThalwegTop()
+        #self.getVariablesGeneration()
 
         for varName in variables:
             if varName in [
@@ -242,27 +291,47 @@ class Path:
                 variables.append("flux")
                 continue
 
-            values = getattr(self, f"{varName}Generation")
-            sumF, coF = self.calcThalwegCenterof(
-                values, self.fluxGeneration
-            )  # center of flux of every variable
-            sumE, coE = self.calcThalwegCenterof(
-                values, self.flowEnergyGeneration
-            )  # center of energy of every variable
-            sumZd, coZd = self.calcThalwegCenterof(
-                values, self.zDeltaGeneration
-            )  # center of energy of every variable
+            values = self.getGenerationList(varName)
 
-            # extend the thalweg to the top of the release area
-            # coE = np.append(getattr(self, f"{varName}0"), coE)
-            # coF = np.append(getattr(self, f"{varName}0"), coF)
-            # coZd = np.append(getattr(self, f"{varName}0"), coZd)
+            if "CoE" in centerOfs:
+                self.energyGenList = self.getGenerationList("flowEnergy")
+                sumE, coE = self.calcThalwegCenterof(
+                    values, self.energyGenList)
+                # TODO: zdelta is 0 in generation 1, so the first value does not make sense
+                setattr(self, f"{varName}CoE", coE[1:])
+            if "CoF" in centerOfs:
+                self.fluxGenList = self.getGenerationList("flux")
+                sumF, coF = self.calcThalwegCenterof(
+                    values, self.fluxGenList)
+                setattr(self, f"{varName}CoF", coF)
+            if "CoZd" in centerOfs:
+                self.zDeltaGenList = self.getGenerationList("zDelta")
+                sumZd, coZd = self.calcThalwegCenterof(
+                    values, self.zDeltaGenList)
+                setattr(self, f"{varName}CoZd", coZd)
+        # for saving RAM, empty the lists
+        self.energyGenList = []
+        self.fluxGenList = []
+        self.zDeltaGenList = []
 
-            setattr(self, f"{varName}SumCoE", sumE)
-            setattr(self, f"{varName}CoF", coF)
-            # TODO: zdelta is 0 in generation 1, so the first value does not make sense
-            setattr(self, f"{varName}CoE", coE[1:])
-            setattr(self, f"{varName}CoZd", coZd[1:])
+        #values = getattr(self, f"{varName}Generation")
+        '''
+        sumF, coF = self.calcThalwegCenterof(
+            values, self.fluxGeneration
+        )  # center of flux of every variable
+        sumE, coE = self.calcThalwegCenterof(
+            values, self.flowEnergyGeneration
+        )  # center of energy of every variable
+        sumZd, coZd = self.calcThalwegCenterof(
+            values, self.zDeltaGeneration
+        )  # center of energy of every variable
+
+        setattr(self, f"{varName}SumCoE", sumE)
+        setattr(self, f"{varName}CoF", coF)
+        # TODO: zdelta is 0 in generation 1, so the first value does not make sense
+        setattr(self, f"{varName}CoE", coE[1:])
+        setattr(self, f"{varName}CoZd", coZd[1:])
+        '''
 
     def calcAlphaEff(self, s, z):
         """Compute the effective alpha angle of the thalweg"""
@@ -273,26 +342,6 @@ class Path:
         else:
             alphaEff = np.nan
         return alphaEff
-
-    def extendThalwegTop(self):
-        """
-        extend thalweg to top (highest point) of the release area,
-        similar as in ana5Utils.DFAPathGeneration.extendProfileTop with extTopOption = 0
-        """
-        self.zDelta0 = 0
-        self.flux0 = 1
-        self.fluxSum0 = 1
-        self.flowEnergy0 = 0
-        self.travelLength0 = 0
-        self.gamma0 = 0
-
-        self.altitude0 = max(self.altitudeGeneration[0])
-        self.z0 = self.altitude0
-        self.s0 = self.travelLength0
-        index0 = self.altitudeGeneration[0].index(self.altitude0)
-        self.row0 = self.rowGeneration[0][index0]
-        self.col0 = self.colGeneration[0][index0]
-        self.x0, self.y0 = self.indizesToDFACoords(self.col0, self.row0)
 
     def DFAextendTop(self, co):
         """
@@ -311,11 +360,14 @@ class Path:
             },
         }
         extTopOption = self.cfgPathGen["PATH"].getint("extTopOption")
-        xIni, yIni = self.indizesToDFACoords(
-            np.asarray(self.colGeneration[0]), np.asarray(self.rowGeneration[0])
-        )
-        particlesIni = {"x": xIni, "y": yIni, "z": self.altitudeGeneration[0]}
+        colGen0 = self.getGenerationList("col", generation=0)
+        rowGen0 = self.getGenerationList("row", generation=0)
+        zGen0 = self.getGenerationList("altitude", generation=0)
 
+        xIni, yIni = self.indizesToDFACoords(
+            np.asarray(colGen0), np.asarray(rowGen0)
+        )
+        particlesIni = {"x": xIni, "y": yIni, "z": np.asarray(zGen0)}
         profile = {
             "x": getattr(self, f"x{co}"),
             "y": getattr(self, f"y{co}"),
@@ -684,7 +736,7 @@ class Path:
             variables.append("col")
             variables.append("row")
 
-        self.getCenterofs(variables)
+        self.getCenterofs(variables, centerOfs)
         for co in centerOfs:
             # convert column and row to coordinates s, y
             x, y = self.indizesToDFACoords(getattr(self, f"col{co}"), getattr(self, f"row{co}"))
