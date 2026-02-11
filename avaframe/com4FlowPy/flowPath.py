@@ -300,6 +300,16 @@ class Path:
         ana5Utils.DFAPathGeneration
         and update the thalweg values
         """
+        demDict = {
+            "rasterData": self.dem,
+            "header": {
+                "cellsize": self.cellsize,
+                "xllcorner": self.xllcorner,
+                "yllcorner": self.yllcorner,
+                "xllcenter": self.xllcenter,
+                "yllcenter": self.yllcenter,
+            },
+        }
         extTopOption = self.cfgPathGen["PATH"].getint("extTopOption")
         xIni, yIni = self.indizesToDFACoords(
             np.asarray(self.colGeneration[0]), np.asarray(self.rowGeneration[0])
@@ -311,30 +321,29 @@ class Path:
             "y": getattr(self, f"y{co}"),
             "z": getattr(self, f"altitude{co}"),
             "s": getattr(self, f"travelLength{co}"),
+            "zDelta": getattr(self, f"zDelta{co}"),
+            "flux": getattr(self, f"flux{co}"),
+            "flowEnergy": getattr(self, f"flowEnergy{co}"),
             "indStartMassAverage": 1, # after the top extension!
         }
         # do not use the last, because at the end there are some weird direction
-        profile["indEndMassAverage"] = np.size(profile["x"]) - 3
+        profile["indEndMassAverage"] = np.size(profile["x"])
         # remember the coordinates of the averaged thalweg without extensions
         self.startThalweg = {"x": profile["x"][0], "y": self.updateYCoord(profile["y"][0]), "z": profile["z"][0], "s": profile["s"][0]}
         self.endThalweg = {"x": profile["x"][-1], "y": self.updateYCoord(profile["y"][-1]), "z": profile["z"][-1], "s": profile["s"][-1]}
 
         profile = DFAPathGeneration.extendProfileTop(extTopOption, particlesIni, profile)
-        self.setThalwegDataFromDict(profile, co)
 
-        changedLen = len(profile["x"]) - len(getattr(self, f"zDelta{co}"))
+        changedLen = len(profile["x"]) - len(profile["zDelta"])
         if changedLen > 0:
             # TODO: only compute when they are in the variable list?
             # TODO: extrapolate these values!
-            zDelta = np.append(np.zeros(changedLen), getattr(self, f"zDelta{co}"))
-            setattr(self, f"zDelta{co}", zDelta)
-            flux = np.append(np.ones(changedLen), getattr(self, f"flux{co}"))
-            setattr(self, f"flux{co}", flux)
-            flowEnergy = np.append(np.zeros(changedLen), getattr(self, f"flowEnergy{co}"))
-            setattr(self, f"flowEnergy{co}", flowEnergy)
+            profile["zDelta"] = np.append(np.zeros(changedLen), profile["zDelta"])
+            profile["flux"] = np.append(np.ones(changedLen), profile["flux"])
+            profile["flowEnergy"] = np.append(np.zeros(changedLen), profile["flowEnergy"])
             # fluxSum = np.append(np.ones(changedLen), getattr(self, f"fluxSum{co}"))
             # setattr(self, f"fluxSum{co}", fluxSum)
-
+        self.setThalwegDataFromDict(profile, co)
         return profile
 
     def DFAextendTopWILD(self, co):
@@ -353,7 +362,7 @@ class Path:
             "y": getattr(self, f"y{co}")[::-1],
             "z": (getattr(self, f"altitude{co}")[::-1]) * (-1),
             "s": getattr(self, f"travelLength{co}")[::-1],
-            "indStartMassAverage": 0,
+            "indStartMassAverage": 1,
         }
         profileUD["indEndMassAverage"] = len(profileUD["x"]) + 1
 
@@ -404,23 +413,42 @@ class Path:
         profile = DFAPathGeneration.extendProfileBottom(
             self.cfgPathGen["PATH"], demDict, profile, considerLLC=True
         )
-        profile = DFAPathGeneration.resamplePath(self.cfgPathGen["PATH"], demDict, profile)
+        profileResample = profile.copy()
+        profileResample = DFAPathGeneration.resamplePath(self.cfgPathGen["PATH"], demDict, profileResample)
+        profile = self.replaceResampledProfileCore(profile, profileResample)
+
+        changedLen = len(profile["x"]) - len(profile["zDelta"])
+        if changedLen > 0:
+            # TODO: extrapolate these values!
+            zDeltaLast =  profile["zDelta"][-1]
+            profile["zDelta"] = np.append(profile["zDelta"], np.ones(changedLen) * zDeltaLast)
+            fluxLast = profile["flux"][-1]
+            profile["flux"] = np.append(profile["flux"], np.ones(changedLen) * fluxLast)
+            flowEnergyLast = profile["flowEnergy"][-1]
+            profile["flowEnergy"] = np.append(profile["flowEnergy"], np.ones(changedLen) * flowEnergyLast)
         profile = self.findLastPointInRaster(profile)
         profile = self.findBottomPointInPath(profile)
         self.setThalwegDataFromDict(profile, co)
 
-        changedLen = len(profile["x"]) - len(getattr(self, f"zDelta{co}"))
-        if changedLen > 0:
-            # TODO: extrapolate these values!
-            zDeltaLast = getattr(self, f"zDelta{co}")[-1]
-            zDelta = np.append(getattr(self, f"zDelta{co}"), np.ones(changedLen) * zDeltaLast)
-            setattr(self, f"zDelta{co}", zDelta)
-            fluxLast = getattr(self, f"flux{co}")[-1]
-            flux = np.append(getattr(self, f"flux{co}"), np.ones(changedLen) * fluxLast)
-            setattr(self, f"flux{co}", flux)
-            flowEnergyLast = getattr(self, f"flowEnergy{co}")[-1]
-            flowEnergy = np.append(getattr(self, f"flowEnergy{co}"), np.ones(changedLen) * flowEnergyLast)
-            setattr(self, f"flowEnergy{co}", flowEnergy)
+        return profile
+
+    def replaceResampledProfileCore(self, profile, profileResample):
+        """
+        for all variables (x, y, s, z, zdelta, fluxSum, flowEnergy)
+        use the resampled top and bottom (extended) values and the original vlaues inbetween.
+        """
+        indStart = profile["indStartMassAverage"]
+        indEnd = profile["indEndMassAverage"] + 1
+        indStartRes = profileResample["indStartMassAverage"]
+        indEndRes = profileResample["indEndMassAverage"] + 1
+
+        for key in profile.keys():
+            if key in ["indStartMassAverage", "indEndMassAverage"]:
+                continue
+            resampledTop = profileResample[key][0:indStartRes]
+            resampledBottom = profileResample[key][indEndRes:]
+            keepCore = profile[key][indStart:indEnd]
+            profile[key] = np.concatenate((resampledTop, keepCore, resampledBottom))
         return profile
 
     def pathExtension(self, co):
@@ -439,12 +467,16 @@ class Path:
 
 
     def setThalwegDataFromDict(self, profile, co):
-        setattr(self, f"x{co}", profile["x"])
-        setattr(self, f"y{co}", profile["y"])
-        setattr(self, f"z{co}", profile["z"])
-        setattr(self, f"altitude{co}", profile["z"])
-        setattr(self, f"s{co}", profile["s"])
-        setattr(self, f"travelLength{co}", profile["s"])
+
+        for variable in profile.keys():
+            if variable in ["indStartMassAverage", "indEndMassAverage"]:
+                continue
+            if variable == "s":
+                setattr(self, f"travelLength{co}", profile["s"])
+            if variable == "z":
+                setattr(self, f"altitude{co}", profile["z"])
+            setattr(self, f"{variable}{co}", profile[variable])
+
 
     def findLastPointInRaster(self, profile):
         values, _ = gT.projectOnGrid(
@@ -459,7 +491,9 @@ class Path:
         indexInRaster = np.where(values > 0)[0]
         # keep also the last point
         indexInRaster = np.append(indexInRaster, len(profile["x"]) - 1)
-        for variable in ["x", "y", "z", "s"]:
+        for variable in profile.keys():
+            if variable in ["indStartMassAverage", "indEndMassAverage"]:
+                continue
             profile[variable] = profile[variable][indexInRaster]
         # correct s because the upper part can be outside the raster
         profile["s"] = profile["s"] - profile["s"][0]
