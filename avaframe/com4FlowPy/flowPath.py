@@ -460,9 +460,9 @@ class Path:
         profileResample = DFAPathGeneration.resamplePath(self.cfgPathGen["PATH"], demDict, profileResample)
         profile = self.replaceResampledProfileCore(profile, profileResample)
 
-        profile = self.findLastPointInRaster(profile)
-
-        profile = self.findBottomPointInPath(profile)
+        # don't cut thalweg
+        #profile = self.findLastPointInRaster(profile)
+        #profile = self.findBottomPointInPath(profile)
 
         self.setThalwegDataFromDict(profile, co)
 
