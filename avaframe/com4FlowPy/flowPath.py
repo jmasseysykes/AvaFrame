@@ -386,15 +386,6 @@ class Path:
 
         profile = DFAPathGeneration.extendProfileTop(extTopOption, particlesIni, profile)
 
-        changedLen = len(profile["x"]) - len(profile["zDelta"])
-        if changedLen > 0:
-            # TODO: only compute when they are in the variable list?
-            # TODO: extrapolate these values!
-            profile["zDelta"] = np.append(np.zeros(changedLen), profile["zDelta"])
-            profile["flux"] = np.append(np.ones(changedLen), profile["flux"])
-            profile["flowEnergy"] = np.append(np.zeros(changedLen), profile["flowEnergy"])
-            # fluxSum = np.append(np.ones(changedLen), getattr(self, f"fluxSum{co}"))
-            # setattr(self, f"fluxSum{co}", fluxSum)
         self.setThalwegDataFromDict(profile, co)
         return profile
 
@@ -460,26 +451,19 @@ class Path:
                 "yllcenter": self.yllcenter,
             },
         }
-
         # extend the bottom quite far
         profile = DFAPathGeneration.extendProfileBottom(
             self.cfgPathGen["PATH"], demDict, profile, considerLLC=True
         )
+
         profileResample = profile.copy()
         profileResample = DFAPathGeneration.resamplePath(self.cfgPathGen["PATH"], demDict, profileResample)
         profile = self.replaceResampledProfileCore(profile, profileResample)
 
-        changedLen = len(profile["x"]) - len(profile["zDelta"])
-        if changedLen > 0:
-            # TODO: extrapolate these values!
-            zDeltaLast =  profile["zDelta"][-1]
-            profile["zDelta"] = np.append(profile["zDelta"], np.ones(changedLen) * zDeltaLast)
-            fluxLast = profile["flux"][-1]
-            profile["flux"] = np.append(profile["flux"], np.ones(changedLen) * fluxLast)
-            flowEnergyLast = profile["flowEnergy"][-1]
-            profile["flowEnergy"] = np.append(profile["flowEnergy"], np.ones(changedLen) * flowEnergyLast)
         profile = self.findLastPointInRaster(profile)
+
         profile = self.findBottomPointInPath(profile)
+
         self.setThalwegDataFromDict(profile, co)
 
         return profile
@@ -494,13 +478,27 @@ class Path:
         indStartRes = profileResample["indStartMassAverage"]
         indEndRes = profileResample["indEndMassAverage"] + 1
 
+        lenExtTop = len(profileResample["x"][0:indStartRes])
+        lenExtBot = len(profileResample["x"][indEndRes:])
+
         for key in profile.keys():
             if key in ["indStartMassAverage", "indEndMassAverage"]:
                 continue
-            resampledTop = profileResample[key][0:indStartRes]
-            resampledBottom = profileResample[key][indEndRes:]
-            keepCore = profile[key][indStart:indEnd]
+            elif key in ["zDelta", "flowEnergy"]:
+                keepCore = profile[key][1:] # dont use the first value because it is 0
+                resampledTop = np.linspace(0,keepCore[0], lenExtTop + 1, endpoint=False)
+
+                resampledBottom = np.linspace(keepCore[-1],0, lenExtBot, endpoint=False)
+            elif key in ["fluxSum", "flux"]:
+                keepCore = profile[key]
+                resampledTop = np.linspace(1, keepCore[0], lenExtTop, endpoint=False)
+                resampledBottom = np.linspace(keepCore[-1], 0, lenExtBot, endpoint=False)
+            else:
+                resampledTop = profileResample[key][0:indStartRes]
+                resampledBottom = profileResample[key][indEndRes:]
+                keepCore = profile[key][indStart:indEnd]
             profile[key] = np.concatenate((resampledTop, keepCore, resampledBottom))
+
         return profile
 
     def pathExtension(self, co):
