@@ -637,6 +637,7 @@ def calculation(args):
     generationListRelId = []
     startcell_idx = 0
     startCellIdDict = {}
+    timeThalweg = 0.
     while startcell_idx < len(row_list):
 
         if infraBool:
@@ -910,6 +911,7 @@ def calculation(args):
                 if startcellId != relIdArray[nextRowIdx, nextColIdx] or lastStartcell:
                     # TODO: now, for the path rowIdx and colIdx do not make sense!!
                     log.info(f"Finished computing PRA with ID {startcellId}. Start computing its thalweg!")
+                    timeThawlegStart = time.time()
                     path = Path(
                         dem,
                         row_list[startcell_idx],
@@ -920,8 +922,10 @@ def calculation(args):
                         startcellId,
                     )
                     path.calcAndSaveThalwegData(thalwegParameters)
+                    timeThawlegEnd = time.time()
+                    timeThalweg += timeThawlegEnd - timeThawlegStart
                     generationListRelId = []
-                    log.info(f"Finished computing thalweg of PRA with ID {startcellId}.")
+                    log.info(f"Finished computing thalweg of PRA with ID {startcellId}, it took {np.round(timeThawlegEnd - timeThawlegStart, 1)} s.")
 
             elif calcThalweg:
                 path = Path(
@@ -1124,6 +1128,7 @@ def calculation(args):
         zDeltaSumArray += zDeltaPathArray
 
     gc.collect()
+    log.info(f"Thalweg computation took {np.round(timeThawlegEnd - timeThawlegStart, 1)} s.")
     return (
         zDeltaArray,
         fluxArray,

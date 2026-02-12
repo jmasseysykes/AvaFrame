@@ -458,6 +458,9 @@ class Path:
 
         profileResample = profile.copy()
         profileResample = DFAPathGeneration.resamplePath(self.cfgPathGen["PATH"], demDict, profileResample)
+        profileResampleKeep = {}
+        for key in ["x", "y", "z", "s", "indStartMassAverage", "indEndMassAverage"]:
+            profileResampleKeep[key] = profileResample[key].copy()
         profile = self.replaceResampledProfileCore(profile, profileResample)
 
         # don't cut thalweg
@@ -465,6 +468,7 @@ class Path:
         #profile = self.findBottomPointInPath(profile)
 
         self.setThalwegDataFromDict(profile, co)
+        profile["resampleProfile"] = profileResampleKeep
 
         return profile
 
@@ -510,6 +514,7 @@ class Path:
         profile = self.DFAextendBottom(co, profile)
         self.indexStartThalweg = profile["indStartMassAverage"]
         self.indexEndThalweg = profile["indEndMassAverage"]
+        self.resampleProfile = profile["resampleProfile"]
 
         # update y coordinate from upside down to right direction
         yUpdate = self.updateYCoord(getattr(self, f"y{co}"))
@@ -667,6 +672,7 @@ class Path:
             "endAverageData": self.endThalweg,
             "indexStartAverageData": self.indexStartThalweg,
             "indexEndAverageData": self.indexEndThalweg,
+            "resampleProfile": self.resampleProfile,
         }
         variables = variables
         centerOfs = centerOfs
