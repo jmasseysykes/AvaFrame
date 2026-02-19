@@ -115,45 +115,6 @@ class Path:
         y = self.yllcorner + (self.nrows - rows) * self.cellsize
         return y
 
-    def getVariablesGeneration(self):
-        """write lists with size and format of genList containing specific parameters
-        (the main list contains lists for every generation)
-        TODO: only calculate 'important'/output arrays
-        """
-        for cellList in self.genList:
-            cellListZDelta = []
-            cellListFlux = []
-            cellListMinDistance = []
-            cellListFlowEnergy = []
-            cellListRow = []
-            cellListCol = []
-            cellListAlt = []
-            cellListGamma = []
-            cellListDepFlux = []
-
-            for cell in cellList:
-                cellListZDelta.append(cell.z_delta)
-                cellListFlux.append(cell.flux)
-                cellListDepFlux.append(cell.fluxDep)
-                cellListMinDistance.append(cell.min_distance)
-                cellListFlowEnergy.append(cell.flowEnergy)
-                cellListRow.append(cell.rowindex)
-                cellListCol.append(cell.colindex)
-                cellListAlt.append(cell.altitude)
-                cellListGamma.append(cell.max_gamma)
-                # cellListFlux_gen.append(cell.flux_generation)
-
-            self.zDeltaGeneration.append(cellListZDelta)
-            self.fluxGeneration.append(cellListFlux)
-            self.depFluxGeneration.append(cellListDepFlux)
-            self.travelLengthGeneration.append(cellListMinDistance)
-            self.flowEnergyGeneration.append(cellListFlowEnergy)
-            self.rowGeneration.append(cellListRow)
-            self.colGeneration.append(cellListCol)
-            self.altitudeGeneration.append(cellListAlt)
-            self.gammaGeneration.append(cellListGamma)
-            # self.flux_gen.append(cellListFlux_gen)
-
     def getGenerationList(self, variable, generation=None):
         """write lists with size and format of genList containing specific parameters
         (the main list contains lists for every generation)
@@ -364,7 +325,6 @@ class Path:
             extTopOption, particlesIni, profile, dem=demDict, cfg=self.cfgPathGen["PATH"], considerLLC=True
         )
 
-        self.setThalwegDataFromDict(profile, co)
         return profile
 
     def getThalwegProfile(self, dem, co):
@@ -432,8 +392,6 @@ class Path:
             profile[variable] = profileUD[variable][::-1]
         profile["z"] = profile["z"] * (-1)
 
-        self.setThalwegDataFromDict(profile, co)
-
         changedLen = len(profile["x"]) - len(getattr(self, f"zDelta{co}"))
         if changedLen > 0:
             # TODO: only compute when they are in the variable list?
@@ -466,10 +424,12 @@ class Path:
             self.cfgPathGen["PATH"], demDict, profile, considerLLC=True
         )
 
+        # resample profile/ path and save in an extra dictionary
         profileResample = profile.copy()
         profileResample = DFAPathGeneration.resamplePath(self.cfgPathGen["PATH"], demDict, profileResample)
         profileResampleKeep = {}
         for key in ["x", "y", "z", "s", "indStartMassAverage", "indEndMassAverage"]:
+            # keep original values and just reasmpled values in extension
             profileResampleKeep[key] = profileResample[key].copy()
         profile = self.replaceResampledProfileCore(profile, profileResample)
 
@@ -477,7 +437,6 @@ class Path:
         # profile = self.findLastPointInRaster(profile)
         # profile = self.findBottomPointInPath(profile)
 
-        self.setThalwegDataFromDict(profile, co)
         profile["resampleProfile"] = profileResampleKeep
 
         return profile
@@ -528,19 +487,19 @@ class Path:
         setattr(self, f"resampleProfile{co}", profile["resampleProfile"])
 
         # update y coordinate from upside down to right direction
-        yUpdate = self.updateYCoord(getattr(self, f"y{co}"))
-        setattr(self, f"y{co}", yUpdate)
+        profile["y"] = self.updateYCoord(profile["y"])
+        self.setThalwegDataFromDict(profile, co, extension="Extended")
 
-    def setThalwegDataFromDict(self, profile, co):
+    def setThalwegDataFromDict(self, profile, co, extension=""):
 
         for variable in profile.keys():
             if variable in ["indStartMassAverage", "indEndMassAverage"]:
                 continue
             if variable == "s":
-                setattr(self, f"travelLength{co}", profile["s"])
+                setattr(self, f"travelLength{extension}{co}", profile["s"])
             if variable == "z":
-                setattr(self, f"altitude{co}", profile["z"])
-            setattr(self, f"{variable}{co}", profile[variable])
+                setattr(self, f"altitude{extension}{co}", profile["z"])
+            setattr(self, f"{variable}{extension}{co}", profile[variable])
 
     def findLastPointInRaster(self, profile):
         values, _ = gT.projectOnGrid(
@@ -646,6 +605,7 @@ class Path:
         variables: list
             contains the variable names that are saved
         """
+        # TODO! check if z and s coordinates are read from raster (distance computed) or if they are averaged
         thalwegData = {
             "alpha": round(self.alpha, 1),
             "exponent": self.exp,
@@ -686,6 +646,12 @@ class Path:
                 thalwegData["resampleProfile"] = getattr(self, f"resampleProfile{co}")
                 thalwegData["startAverageData"] = self.startThalweg
                 thalwegData["endAverageData"] = self.endThalweg
+                thalwegData["extendedThalweg"] = {
+                    "x": getattr(self, f"xExtended{co}"),
+                    "y": getattr(self, f"yExtended{co}"),
+                    "z": getattr(self, f"zExtended{co}"),
+                    "s": getattr(self, f"sExtended{co}"),
+                }
 
             # output file name and save teh pickle file
             if self.relId is None:
@@ -734,4 +700,6 @@ class Path:
             setattr(self, f"y{co}", y)
             if self.addExtension:
                 self.pathExtension(co)
+            # update y coordinate
+            setattr(self, f"y{co}", self.updateYCoord(y))
         self.saveDict(saveDir, centerOfs, variables)
