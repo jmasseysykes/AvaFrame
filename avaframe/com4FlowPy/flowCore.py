@@ -203,13 +203,11 @@ def run(optTuple):
     calcGeneration = optTuple[2]["calcGeneration"]
     calcThalweg = optTuple[2]["calcThalweg"]
     if calcThalweg:
-        thalwegDir = optTuple[3]["thalwegDir"]
-        thalwegCenterOf = optTuple[2]["thalwegCenterOf"]
-        thalwegVariables = optTuple[2]["thalwegVariables"]
         thalwegParameters = {
-            "thalwegDir": thalwegDir,
-            "thalwegCenterOf": thalwegCenterOf,
-            "thalwegVariables": thalwegVariables,
+            "thalwegDir": optTuple[3]["thalwegDir"],
+            "thalwegCenterOf": optTuple[2]["thalwegCenterOf"],
+            "thalwegVariables": optTuple[2]["thalwegVariables"],
+            "addThalwegExtension": optTuple[2]["addThalwegExtension"],
         }
     else:
         thalwegParameters = None
@@ -637,7 +635,7 @@ def calculation(args):
     generationListRelId = []
     startcell_idx = 0
     startCellIdDict = {}
-    timeThalweg = 0.
+    timeThalweg = 0.0
     while startcell_idx < len(row_list):
 
         if infraBool:
@@ -925,7 +923,9 @@ def calculation(args):
                     timeThawlegEnd = time.time()
                     timeThalweg += timeThawlegEnd - timeThawlegStart
                     generationListRelId = []
-                    log.info(f"Finished computing thalweg of PRA with ID {startcellId}, it took {np.round(timeThawlegEnd - timeThawlegStart, 1)} s.")
+                    log.info(
+                        f"Finished computing thalweg of PRA with ID {startcellId}, it took {np.round(timeThawlegEnd - timeThawlegStart, 1)} s."
+                    )
 
             elif calcThalweg:
                 path = Path(
@@ -1054,7 +1054,7 @@ def calculation(args):
                 slTravelAngleArray[cell.rowindex, cell.colindex] = max(
                     slTravelAngleArray[cell.rowindex, cell.colindex], cell.sl_gamma
                 )
-                
+
                 if "travelLengthMax" in outputs or "travelLength" in outputs:
                     travelLengthMaxArray[cell.rowindex, cell.colindex] = max(
                         travelLengthMaxArray[cell.rowindex, cell.colindex], cell.min_distance

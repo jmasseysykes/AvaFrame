@@ -309,25 +309,6 @@ class Path:
         self.fluxGenList = []
         self.zDeltaGenList = []
 
-        # values = getattr(self, f"{varName}Generation")
-        """
-        sumF, coF = self.calcThalwegCenterof(
-            values, self.fluxGeneration
-        )  # center of flux of every variable
-        sumE, coE = self.calcThalwegCenterof(
-            values, self.flowEnergyGeneration
-        )  # center of energy of every variable
-        sumZd, coZd = self.calcThalwegCenterof(
-            values, self.zDeltaGeneration
-        )  # center of energy of every variable
-
-        setattr(self, f"{varName}SumCoE", sumE)
-        setattr(self, f"{varName}CoF", coF)
-        # TODO: zdelta is 0 in generation 1, so the first value does not make sense
-        setattr(self, f"{varName}CoE", coE[1:])
-        setattr(self, f"{varName}CoZd", coZd[1:])
-        """
-
     def calcAlphaEff(self, s, z):
         """Compute the effective alpha angle of the thalweg"""
         dz = z[0] - z[-1]
@@ -652,31 +633,6 @@ class Path:
 
         return profile
 
-    def updateTravelLengthTopExtension(self, rowThalweg, colThalweg, sThalweg):
-        """
-        update travel length thalweg with the top-extension
-
-        Parameters
-        ------------
-        rowThalweg: numpy array
-            row values of thalweg
-        colThalweg: numpy array
-            col values of thalweg
-        sThalweg: numpy array
-            travel length (s values) projected into the horizontal of thalweg
-
-        Returns
-        ------------
-        sThalweg: numpy array
-            updated travel length (second index) considering that the thalweg was extended to the rop of the release area
-        """
-        deltaRow = rowThalweg[1] - rowThalweg[0]
-        deltaCol = colThalweg[1] - colThalweg[0]
-        # compute deltaS in meters
-        deltaS = np.sqrt((deltaRow * self.cellsize) ** 2 + (deltaCol * self.cellsize) ** 2)
-        sThalweg[1:] += deltaS
-        return sThalweg
-
     def saveDict(self, saveDir, centerOfs, variables):
         """
         save thalweg data. (One file per thalweg)
@@ -696,8 +652,6 @@ class Path:
             "zDeltaMax": round(self.maxZDelta, 1),
             # 'crs': self.crs,
             "numberGen": self.numberGen,
-            "startAverageData": self.startThalweg,
-            "endAverageData": self.endThalweg,
         }
         variables = variables
         centerOfs = centerOfs
@@ -726,9 +680,12 @@ class Path:
                 # compute and save effective alpha angle
                 alpha = self.calcAlphaEff(getattr(self, f"travelLength{co}"), getattr(self, f"altitude{co}"))
                 thalwegData[f"alphaEff"] = alpha
-            thalwegData["indexStartAverageData"] = getattr(self, f"indexStartThalweg{co}")
-            thalwegData["indexEndAverageData"] = getattr(self, f"indexEndThalweg{co}")
-            thalwegData["resampleProfile"] = getattr(self, f"resampleProfile{co}")
+            if self.addExtension:
+                thalwegData["indexStartAverageData"] = getattr(self, f"indexStartThalweg{co}")
+                thalwegData["indexEndAverageData"] = getattr(self, f"indexEndThalweg{co}")
+                thalwegData["resampleProfile"] = getattr(self, f"resampleProfile{co}")
+                thalwegData["startAverageData"] = self.startThalweg
+                thalwegData["endAverageData"] = self.endThalweg
 
             # output file name and save teh pickle file
             if self.relId is None:
@@ -750,6 +707,7 @@ class Path:
         cos = eval(thalwegParameters["thalwegCenterOf"])
         variables = eval(thalwegParameters["thalwegVariables"])
         centerOfs = []
+        self.addExtension = bool(thalwegParameters["addThalwegExtension"])
         for co in cos:
             co.lower()
             if co in ["energy", "coe"]:
@@ -774,8 +732,6 @@ class Path:
             x, y = self.indizesToDFACoords(getattr(self, f"col{co}"), getattr(self, f"row{co}"))
             setattr(self, f"x{co}", x)
             setattr(self, f"y{co}", y)
-            self.pathExtension(co)
-            # sUpdate = self.updateTravelLengthTopExtension(getattr(self, f"row{co}"), getattr(self, f"col{co}"), getattr(self, f"travelLength{co}"))
-            # setattr(self, f"s{co}", sUpdate)
-            # setattr(self, f"travelLength{co}", sUpdate)
+            if self.addExtension:
+                self.pathExtension(co)
         self.saveDict(saveDir, centerOfs, variables)
