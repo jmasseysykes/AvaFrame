@@ -2,7 +2,6 @@ import numpy as np
 import pickle
 import logging
 
-import avaframe.ana5Utils.DFAPathGeneration as DFAPathGeneration
 from avaframe.in3Utils import cfgUtils
 from avaframe.ana5Utils import DFAPathGeneration
 import avaframe.in3Utils.geoTrans as gT
@@ -201,7 +200,6 @@ class Path:
                 log.error(f"variable {variable} can not be computed to a generation list")
         return listVariable
 
-
     def getPathArrays(self):
         """write arrays with size of dem containing the maximum of the variable values of every path
         value 0 means, the path does not hit the cell
@@ -269,7 +267,7 @@ class Path:
             List of variables that should be weighted (with center of energy and flux)
         """
 
-        #self.getVariablesGeneration()
+        # self.getVariablesGeneration()
 
         for varName in variables:
             if varName in [
@@ -295,27 +293,24 @@ class Path:
 
             if "CoE" in centerOfs:
                 self.energyGenList = self.getGenerationList("flowEnergy")
-                sumE, coE = self.calcThalwegCenterof(
-                    values, self.energyGenList)
+                sumE, coE = self.calcThalwegCenterof(values, self.energyGenList)
                 # TODO: zdelta is 0 in generation 1, so the first value does not make sense
                 setattr(self, f"{varName}CoE", coE[1:])
             if "CoF" in centerOfs:
                 self.fluxGenList = self.getGenerationList("flux")
-                sumF, coF = self.calcThalwegCenterof(
-                    values, self.fluxGenList)
+                sumF, coF = self.calcThalwegCenterof(values, self.fluxGenList)
                 setattr(self, f"{varName}CoF", coF)
             if "CoZd" in centerOfs:
                 self.zDeltaGenList = self.getGenerationList("zDelta")
-                sumZd, coZd = self.calcThalwegCenterof(
-                    values, self.zDeltaGenList)
+                sumZd, coZd = self.calcThalwegCenterof(values, self.zDeltaGenList)
                 setattr(self, f"{varName}CoZd", coZd)
         # for saving RAM, empty the lists
         self.energyGenList = []
         self.fluxGenList = []
         self.zDeltaGenList = []
 
-        #values = getattr(self, f"{varName}Generation")
-        '''
+        # values = getattr(self, f"{varName}Generation")
+        """
         sumF, coF = self.calcThalwegCenterof(
             values, self.fluxGeneration
         )  # center of flux of every variable
@@ -331,7 +326,7 @@ class Path:
         # TODO: zdelta is 0 in generation 1, so the first value does not make sense
         setattr(self, f"{varName}CoE", coE[1:])
         setattr(self, f"{varName}CoZd", coZd[1:])
-        '''
+        """
 
     def calcAlphaEff(self, s, z):
         """Compute the effective alpha angle of the thalweg"""
@@ -359,34 +354,69 @@ class Path:
                 "yllcenter": self.yllcenter,
             },
         }
+
+        profile = self.getThalwegProfile(demDict, co)
+
         extTopOption = self.cfgPathGen["PATH"].getint("extTopOption")
         colGen0 = self.getGenerationList("col", generation=0)
         rowGen0 = self.getGenerationList("row", generation=0)
         zGen0 = self.getGenerationList("altitude", generation=0)
 
-        xIni, yIni = self.indizesToDFACoords(
-            np.asarray(colGen0), np.asarray(rowGen0)
-        )
+        xIni, yIni = self.indizesToDFACoords(np.asarray(colGen0), np.asarray(rowGen0))
         particlesIni = {"x": xIni, "y": yIni, "z": np.asarray(zGen0)}
-        profile = {
-            "x": getattr(self, f"x{co}"),
-            "y": getattr(self, f"y{co}"),
-            "z": getattr(self, f"altitude{co}"),
-            "s": getattr(self, f"travelLength{co}"),
-            "zDelta": getattr(self, f"zDelta{co}"),
-            "flux": getattr(self, f"flux{co}"),
-            "flowEnergy": getattr(self, f"flowEnergy{co}"),
-            "indStartMassAverage": 1, # after the top extension!
-        }
-        # do not use the last, because at the end there are some weird direction
-        profile["indEndMassAverage"] = np.size(profile["x"])
-        # remember the coordinates of the averaged thalweg without extensions
-        self.startThalweg = {"x": profile["x"][0], "y": self.updateYCoord(profile["y"][0]), "z": profile["z"][0], "s": profile["s"][0]}
-        self.endThalweg = {"x": profile["x"][-1], "y": self.updateYCoord(profile["y"][-1]), "z": profile["z"][-1], "s": profile["s"][-1]}
 
-        profile = DFAPathGeneration.extendProfileTop(extTopOption, particlesIni, profile)
+        # remember the coordinates of the averaged thalweg without extensions
+        self.startThalweg = {
+            "x": profile["x"][0],
+            "y": self.updateYCoord(profile["y"][0]),
+            "z": profile["z"][0],
+            "s": profile["s"][0],
+        }
+        self.endThalweg = {
+            "x": profile["x"][-1],
+            "y": self.updateYCoord(profile["y"][-1]),
+            "z": profile["z"][-1],
+            "s": profile["s"][-1],
+        }
+
+        profile = DFAPathGeneration.extendProfileTop(
+            extTopOption, particlesIni, profile, dem=demDict, cfg=self.cfgPathGen["PATH"], considerLLC=True
+        )
 
         self.setThalwegDataFromDict(profile, co)
+        return profile
+
+    def getThalwegProfile(self, dem, co):
+        """
+        compute profile along thalweg location with:
+            x: x-coordinate along thalweg (averaged value)
+            y: y-coordinate along thalweg (averaged value)
+            z: z value of dem in thalweg location
+            s: distance between coordinates (horizontal projected)
+        """
+        x = getattr(self, f"x{co}")
+        y = getattr(self, f"y{co}")
+        z, _ = gT.projectOnGrid(
+            x,
+            y,
+            dem["rasterData"],
+            csz=self.cellsize,
+            xllc=self.xllcenter,
+            yllc=self.yllcenter,
+        )
+        s = gT.computeLengthOfLine2D(x, y)
+
+        profile = {
+            "x": x,
+            "y": y,
+            "z": z,
+            "s": s,
+            # "zDelta": getattr(self, f"zDelta{co}"),
+            # "flux": getattr(self, f"flux{co}"),
+            # "flowEnergy": getattr(self, f"flowEnergy{co}"),
+            "indStartMassAverage": 1,  # after the top extension!
+            "indEndMassAverage": np.size("x") - 1,
+        }
         return profile
 
     def DFAextendTopWILD(self, co):
@@ -413,8 +443,8 @@ class Path:
             self.cfgPathGen["PATH"], demUDDict, profileUD, considerLLC=True
         )
         profileUD["s"][-1] = 0
-        #profileUD = self.findLastPointInRaster(profileUD)
-        #profileUD = self.findBottomPointInPath(profileUD)
+        # profileUD = self.findLastPointInRaster(profileUD)
+        # profileUD = self.findBottomPointInPath(profileUD)
 
         profile = {"indStartMassAverage": 0, "indEndMassAverage": profileUD["indEndMassAverage"]}
         for variable in ["x", "y", "z", "s"]:
@@ -436,7 +466,6 @@ class Path:
             # setattr(self, f"fluxSum{co}", fluxSum)
 
         return profile
-
 
     def DFAextendBottom(self, co, profile):
 
@@ -464,8 +493,8 @@ class Path:
         profile = self.replaceResampledProfileCore(profile, profileResample)
 
         # don't cut thalweg
-        #profile = self.findLastPointInRaster(profile)
-        #profile = self.findBottomPointInPath(profile)
+        # profile = self.findLastPointInRaster(profile)
+        # profile = self.findBottomPointInPath(profile)
 
         self.setThalwegDataFromDict(profile, co)
         profile["resampleProfile"] = profileResampleKeep
@@ -489,10 +518,10 @@ class Path:
             if key in ["indStartMassAverage", "indEndMassAverage"]:
                 continue
             elif key in ["zDelta", "flowEnergy"]:
-                keepCore = profile[key][1:] # dont use the first value because it is 0
-                resampledTop = np.linspace(0,keepCore[0], lenExtTop + 1, endpoint=False)
+                keepCore = profile[key][1:]  # dont use the first value because it is 0
+                resampledTop = np.linspace(0, keepCore[0], lenExtTop + 1, endpoint=False)
 
-                resampledBottom = np.linspace(keepCore[-1],0, lenExtBot, endpoint=False)
+                resampledBottom = np.linspace(keepCore[-1], 0, lenExtBot, endpoint=False)
             elif key in ["fluxSum", "flux"]:
                 keepCore = profile[key]
                 resampledTop = np.linspace(1, keepCore[0], lenExtTop, endpoint=False)
@@ -520,7 +549,6 @@ class Path:
         yUpdate = self.updateYCoord(getattr(self, f"y{co}"))
         setattr(self, f"y{co}", yUpdate)
 
-
     def setThalwegDataFromDict(self, profile, co):
 
         for variable in profile.keys():
@@ -531,7 +559,6 @@ class Path:
             if variable == "z":
                 setattr(self, f"altitude{co}", profile["z"])
             setattr(self, f"{variable}{co}", profile[variable])
-
 
     def findLastPointInRaster(self, profile):
         values, _ = gT.projectOnGrid(
@@ -606,19 +633,19 @@ class Path:
             else:
                 bx, by = mx, my
 
-            if np.sqrt((ax - bx)**2 + (ay - by)**2) < tol:
+            if np.sqrt((ax - bx) ** 2 + (ay - by) ** 2) < tol:
                 break
 
         profile["x"][-1] = ax
         profile["y"][-1] = ay
         profile["z"][-1], _ = gT.projectOnGrid(
-                ax,
-                ay,
-                self.dem,
-                csz=self.cellsize,
-                xllc=self.xllcenter,
-                yllc=self.yllcenter,
-            )
+            ax,
+            ay,
+            self.dem,
+            csz=self.cellsize,
+            xllc=self.xllcenter,
+            yllc=self.yllcenter,
+        )
         ds = np.sqrt((profile["x"][-2] - ax) ** 2 + (profile["y"][-2] - ay) ** 2)
         profile["s"][-1] = profile["s"][-2] + ds
 
