@@ -2129,3 +2129,33 @@ def checkDBOverlap(DBXl, DBXr, DBYl, DBYr):
     if not DBrLine.is_simple or not DBlLine.is_simple:
         message = "Domain transformation for given path_aimec - curvature of provided line leads to folding"
         log.warning(message)
+
+
+def indicesToCoords(col, row, header):
+    """
+    transform indeces (row and col) to coordinates (x, y)
+    considering the flipped (upside down) rasters
+    TODO: is there already a function for this calculation??
+
+    Parameters
+    ----------
+    col: numpy array
+        column indices of cells belonging to path
+    row: numpy array
+        row indices of cells belonging to path
+    header: dict
+        header of a raster
+
+    Returns
+    ----------
+    x: numpy array
+        x coordinates (in m) of cells belonging to path
+    y: numpy array
+        y coordinates (in m) of cells belonging to path
+    """
+    cellsize = header["cellsize"]
+    xllcorner = header["xllcenter"] - cellsize / 2
+    yllcorner = header["yllcenter"] - cellsize / 2
+    x = xllcorner + col * cellsize
+    y = yllcorner + row * cellsize
+    return x, y

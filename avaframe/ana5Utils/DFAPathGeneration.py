@@ -1,5 +1,5 @@
 """
-    Tools for generating an avalanche path from a DFA simulation
+Tools for generating an avalanche path from a DFA simulation
 """
 
 # Load modules
@@ -399,7 +399,7 @@ def extendDFAPath(cfg, avaProfile, dem, particlesIni, fieldPFT=None):
     # resample the profile
     resampleDistance = cfg.getfloat("nCellsResample") * dem["header"]["cellsize"]
     avaProfile, _ = gT.prepareLine(dem, avaProfile, distance=resampleDistance, Point=None)
-    avaProfile = extendProfileTop(cfg.getint('extTopOption'), particlesIni, avaProfile)
+    avaProfile = extendProfileTop(cfg.getint('extTopOption'), particlesIni, avaProfile, dem, cfg)
     if cfg.getint('extBottomOption', fallback=0) == 1:
         if fieldPFT is None:
             log.warning('extBottomOption is 1 but no peak flow thickness field was provided, '
@@ -424,6 +424,7 @@ def extendProfileTop(extTopOption, particlesIni, profile, dem=None, cfg=None, co
         decide how to extend towards the top
         if 0, extrapolate towards the highest point in the release
         if 1, extrapolate towards the point leading to the lonest runout
+        if 2 extrapolate in direction of the thalweg upwards
     particlesIni: dict
         initial particles dict
     profile: dict
@@ -450,8 +451,8 @@ def extendProfileTop(extTopOption, particlesIni, profile, dem=None, cfg=None, co
         yFirst = profile["y"][0]
         zFirst = profile["z"][0]
         # get last particle of the path
-        sLast = profile["s"][-1]
-        zLast = profile["z"][-1]
+        sLast = profile["s"][0]
+        zLast = profile["z"][0]
         # compute runout angle for averaged path
         tanAngle = (zFirst - zLast) / sLast
         # compute ds
@@ -483,12 +484,15 @@ def extendProfileTop(extTopOption, particlesIni, profile, dem=None, cfg=None, co
 
         if considerLLC:
             # compute center coordinates of lower left cell
-            xllcenter = header["xllcorner"] + csz / 2
-            yllcenter = header["yllcorner"] + csz / 2
+            xllcenter = header["xllcenter"]
+            yllcenter = header["yllcenter"]
+        else:
+            xllcenter = 0
+            yllcenter = 0
         # get first point
         xFirst = profile["x"][0]
         yFirst = profile["y"][0]
-        sFirst = profile["s"][0]
+        sTotal = profile["s"][-1]
         # compute distance from first point:
         r = DFAtls.norm(profile["x"] - xFirst, profile["y"] - yFirst, 0)
         # find the previous points
@@ -511,16 +515,12 @@ def extendProfileTop(extTopOption, particlesIni, profile, dem=None, cfg=None, co
             vDirX, vDirY, vDirZ = DFAtls.normalize(np.array([vDirX]), np.array([vDirY]), np.array([vDirZ]))
             # extend in this direction
             factExt = cfg.getfloat("factBottomExt")
-            gamma = factExt * sFirst / np.sqrt(vDirX**2 + vDirY**2)
+            gamma = factExt * sTotal / np.sqrt(vDirX**2 + vDirY**2)
             xExtTop = np.array([xFirst - gamma * vDirX])
             yExtTop = np.array([yFirst - gamma * vDirY])
             # project on DEM
-            if considerLLC:
-                zExtTop, _ = gT.projectOnGrid(
-                    xExtTop, yExtTop, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter
-                )
-            else:
-                zExtTop, _ = gT.projectOnGrid(xExtTop, yExtTop, zRaster, csz=csz)
+            zExtTop, _ = gT.projectOnGrid(xExtTop, yExtTop, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter)
+
             # Dicothomie method to find the last point on the extention and on the dem
             if np.isnan(zExtTop):
                 factExt = factExt / 2
@@ -534,19 +534,16 @@ def extendProfileTop(extTopOption, particlesIni, profile, dem=None, cfg=None, co
             factFirst = 0
             while (
                 count < cfg.getint("maxIterationExtBot")
-                and stepSize * sFirst > cfg.getint("nBottomExtPrecision") * csz
+                and stepSize * sTotal > cfg.getint("nBottomExtPrecision") * csz
             ):
                 count = count + 1
-                gamma = factExt * sFirst / np.sqrt(vDirX**2 + vDirY**2)
+                gamma = factExt * sTotal / np.sqrt(vDirX**2 + vDirY**2)
                 xExtTop = np.array([xFirst - gamma * vDirX])
                 yExtTop = np.array([yFirst - gamma * vDirY])
                 # project on DEM
-                if considerLLC:
-                    zExtTop, _ = gT.projectOnGrid(
-                        xExtTop, yExtTop, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter
-                    )
-                else:
-                    zExtTop, _ = gT.projectOnGrid(xExtTop, yExtTop, zRaster, csz=csz)
+                zExtTop, _ = gT.projectOnGrid(
+                    xExtTop, yExtTop, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter
+                )
                 stepSize = stepSize / 2
                 if np.isnan(zExtTop):
                     factExt = factExt - stepSize
@@ -560,21 +557,19 @@ def extendProfileTop(extTopOption, particlesIni, profile, dem=None, cfg=None, co
             if isOut:
                 # the last iteration is not in the domain, fall back to last point in domain
                 factExt = factFirst
-                gamma = factExt * sFirst / np.sqrt(vDirX**2 + vDirY**2)
+                gamma = factExt * sTotal / np.sqrt(vDirX**2 + vDirY**2)
                 xExtTop = np.array([xFirst - gamma * vDirX])
                 yExtTop = np.array([yFirst - gamma * vDirY])
                 # project on DEM
-                if considerLLC:
-                    zExtTop, _ = gT.projectOnGrid(
-                        xExtTop, yExtTop, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter
-                    )
-                else:
-                    zExtTop, _ = gT.projectOnGrid(xExtTop, yExtTop, zRaster, csz=csz)
+                zExtTop, _ = gT.projectOnGrid(
+                    xExtTop, yExtTop, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter
+                )
 
-            log.info("found extention after %d iterations, precision is %.2f m" % (count, stepSize * sFirst))
+            log.info("found extention after %d iterations, precision is %.2f m" % (count, stepSize * sTotal))
             dx = xExtTop - profile["x"][0]
             dy = yExtTop - profile["y"][0]
             ds = np.sqrt(dx**2 + dy**2)
+
     # extend profile
     profile["x"] = np.append(xExtTop, profile["x"])
     profile["y"] = np.append(yExtTop, profile["y"])
@@ -607,7 +602,7 @@ def extendProfileBottom(cfg, dem, profile, considerLLC=False):
     profile: dict
         profile to extend
     considerLLC: bool
-        If True, the lower left corner coordinates are considered when getting z coordinates
+        If True, the lower left corner coordinates are considered when reading z coordinates
 
     Returns
     --------
@@ -618,8 +613,11 @@ def extendProfileBottom(cfg, dem, profile, considerLLC=False):
     csz = header["cellsize"]
     if considerLLC:
         # compute center coordinates of lower left cell
-        xllcenter = header["xllcorner"] + csz / 2
-        yllcenter = header["yllcorner"] + csz / 2
+        xllcenter = header["xllcenter"]
+        yllcenter = header["yllcenter"]
+    else:
+        xllcenter = 0
+        yllcenter = 0
     zRaster = dem["rasterData"]
     # get last point
     xLast = profile["x"][-1]
@@ -650,12 +648,9 @@ def extendProfileBottom(cfg, dem, profile, considerLLC=False):
         xExtBottom = np.array([xLast + gamma * vDirX])
         yExtBottom = np.array([yLast + gamma * vDirY])
         # project on DEM
-        if considerLLC:
-            zExtBottom, _ = gT.projectOnGrid(
-                xExtBottom, yExtBottom, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter
-            )
-        else:
-            zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz)
+        zExtBottom, _ = gT.projectOnGrid(
+            xExtBottom, yExtBottom, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter
+        )
         # Dicothomie method to find the last point on the extention and on the dem
         if np.isnan(zExtBottom):
             factExt = factExt / 2
@@ -1056,6 +1051,9 @@ def resamplePath(cfg, dem, avaProfile):
         dem dict
     avaProfile: dict
         profile to be resampled
+    kResample: int
+        Degree of the spline for splprep. Set to splprep default of 3, use 1
+        if you want to lower the level of spline (3 is cubic)
 
     Returns
     --------
@@ -1063,11 +1061,12 @@ def resamplePath(cfg, dem, avaProfile):
         resampled path profile
     """
     resampleDistance = cfg.getfloat("nCellsResample") * dem["header"]["cellsize"]
+    kResample = cfg.getint("kResample")
     indFirst = avaProfile["indStartMassAverage"]
     indEnd = avaProfile["indEndMassAverage"]
     s0 = avaProfile["s"][indFirst]
     sEnd = avaProfile["s"][indEnd]
-    avaProfile, _ = gT.prepareLine(dem, avaProfile, distance=resampleDistance, Point=None)
+    avaProfile, _ = gT.prepareLine(dem, avaProfile, distance=resampleDistance, Point=None, k=kResample)
     # make sure we get the good start and end point... prepareLine might make a small error on the s coord
     indFirst = np.argwhere(avaProfile['s'] >= s0 - resampleDistance/3)[0][0]
     # look for the first point in the extension and take the one before; if the extension is

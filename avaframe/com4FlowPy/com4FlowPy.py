@@ -81,7 +81,6 @@ def com4FlowPyMain(cfgPath, cfgSetup):
     modelParameters["calcThalweg"] = cfgSetup.getboolean("calcThalweg")
     modelParameters["thalwegCenterOf"] = cfgSetup.get("thalwegCenterOf")
     modelParameters["thalwegVariables"] = cfgSetup.get("thalwegVariables")
-    modelParameters["addThalwegExtension"] = cfgSetup.getboolean("addThalwegExtension")
 
     # modelParameters["infra"]  = cfgSetup["infra"]
     # modelParameters["forest"] = cfgSetup["forest"]

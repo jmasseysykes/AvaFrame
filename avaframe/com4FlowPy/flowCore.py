@@ -207,7 +207,6 @@ def run(optTuple):
             "thalwegDir": optTuple[3]["thalwegDir"],
             "thalwegCenterOf": optTuple[2]["thalwegCenterOf"],
             "thalwegVariables": optTuple[2]["thalwegVariables"],
-            "addThalwegExtension": optTuple[2]["addThalwegExtension"],
         }
     else:
         thalwegParameters = None
@@ -842,8 +841,8 @@ def calculation(args):
                         )
                     if "travelLengthMin" in outputs:
                         if (
-                                travelLengthMinArray[cell.rowindex, cell.colindex] >= 0
-                                and cell.min_distance >= 0
+                            travelLengthMinArray[cell.rowindex, cell.colindex] >= 0
+                            and cell.min_distance >= 0
                         ):
                             travelLengthMinArray[cell.rowindex, cell.colindex] = min(
                                 travelLengthMinArray[cell.rowindex, cell.colindex], cell.min_distance
@@ -871,8 +870,8 @@ def calculation(args):
                     if processedCells[(cell.rowindex, cell.colindex)] == 1:
                         countArray[cell.rowindex, cell.colindex] += int(1)
                     elif (
-                            processedCells[(cell.rowindex, cell.colindex)] > 1
-                            and countArray[cell.rowindex, cell.colindex] <= 0
+                        processedCells[(cell.rowindex, cell.colindex)] > 1
+                        and countArray[cell.rowindex, cell.colindex] <= 0
                     ):
                         countArray[cell.rowindex, cell.colindex] += int(1)
 
