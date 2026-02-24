@@ -2,7 +2,6 @@ import numpy as np
 import pathlib
 import matplotlib.pyplot as plt
 import logging
-import pickle
 import copy
 
 import avaframe.ana5Utils.regionalThalwegTools as tools
@@ -47,7 +46,7 @@ def regionalThalweg2DPlotMain(avalanchedir, cfg):
     relId = cfg["GENERAL"].get("relId")
 
     pathToOutput = avalanchedir / "Outputs" / module / "peakFiles" / f"res_{simhash}"
-    savePath = pathToOutput / "ThalwegPlots"
+    savePath = avalanchedir / "Outputs" / "regionalThalwegPlot"
     fU.makeADir(savePath)
     pathDict = {"avalancheDir": avalanchedir, "pathToOutput": pathToOutput, "savePath": savePath}
 
@@ -116,12 +115,12 @@ def regionalThalweg2DPlotMain(avalanchedir, cfg):
 
             _, profileExtended = pathGen.preparePathGeneralMain(dataThalweg, cfgDFAPath, demDict)
             fileDict[thalwegDataFile] = {"pathDict": pathDictLoop, "thalwegData": profileExtended}
-            savePickle(profileExtended, thalwegDataFile)
+            tools.savePickle(profileExtended, thalwegDataFile)
     else:
         thalwegDataFile = pathToOutput / "thalwegData"
         dataThalweg = tools.readThalwegData(thalwegDataFile, pathDict["titleVariables"])
         _, profileExtended = pathGen.preparePathGeneralMain(dataThalweg, cfgDFAPath, demDict)
-        savePickle(profileExtended, thalwegDataFile)
+        tools.savePickle(profileExtended, thalwegDataFile)
         fileDict[thalwegDataFile] = {"pathDict": pathDict, "thalwegData": profileExtended}
 
     # make plots
@@ -133,17 +132,8 @@ def regionalThalweg2DPlotMain(avalanchedir, cfg):
             zDeltaRasterFile, profileExtended["x"], profileExtended["y"]
         )
         plotThalweg2D(pathDict, cfg, profileExtended)
-        plotThalwegAltitude(pathDict, profileExtended)
+        plotDFAThalwegAltitude(pathDict, profileExtended)
         plotDFAGenerationLocation(pathDict, profileExtended, rasterVariable="fpTravelAngleMax")
-
-
-def savePickle(profileExtended, inFileName):
-    dir = inFileName.parent
-    fileName = inFileName.stem
-    outFileName = dir / f"extended_{fileName}.pickle"
-
-    with open(outFileName, "wb") as handle:
-        pickle.dump(profileExtended, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def plotThalweg2D(pathDict, cfg, dataThalweg):
@@ -232,7 +222,7 @@ def plotDFAGenerationLocation(pathDict, profile, rasterVariable="fpTravelAngleMa
     log.info(f"saved plot: {(savePath / outFileName)}")
 
 
-def plotThalwegAltitude(pathDict, dataThalweg):
+def plotDFAThalwegAltitude(pathDict, dataThalweg):
     """
     plot the AIMEC thalweg-altitude plot
 

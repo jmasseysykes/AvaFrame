@@ -470,6 +470,7 @@ def extendProfileTop(extTopOption, particlesIni, profile, dem=None, cfg=None, co
         zExtTop = particlesIni["z"][indTop]
         ds = ds[indTop]
     elif extTopOption == 2:
+        # TODO: for option 2, the code is very similar as in extendProfileBottom, should we summarize both in one function with options/different handling for top nd bottom extension?
         if dem is None:
             message = f"If extTopOption = 2, the dem needs to be provided"
             log.debug(message)
@@ -671,12 +672,9 @@ def extendProfileBottom(cfg, dem, profile, considerLLC=False):
             xExtBottom = np.array([xLast + gamma * vDirX])
             yExtBottom = np.array([yLast + gamma * vDirY])
             # project on DEM
-            if considerLLC:
-                zExtBottom, _ = gT.projectOnGrid(
-                    xExtBottom, yExtBottom, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter
-                )
-            else:
-                zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz)
+            zExtBottom, _ = gT.projectOnGrid(
+                xExtBottom, yExtBottom, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter
+            )
             stepSize = stepSize / 2
             if np.isnan(zExtBottom):
                 factExt = factExt - stepSize
@@ -694,12 +692,9 @@ def extendProfileBottom(cfg, dem, profile, considerLLC=False):
             xExtBottom = np.array([xLast + gamma * vDirX])
             yExtBottom = np.array([yLast + gamma * vDirY])
             # project on DEM
-            if considerLLC:
-                zExtBottom, _ = gT.projectOnGrid(
-                    xExtBottom, yExtBottom, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter
-                )
-            else:
-                zExtBottom, _ = gT.projectOnGrid(xExtBottom, yExtBottom, zRaster, csz=csz)
+            zExtBottom, _ = gT.projectOnGrid(
+                xExtBottom, yExtBottom, zRaster, csz=csz, xllc=xllcenter, yllc=yllcenter
+            )
 
         log.info("found extention after %d iterations, precision is %.2f m" % (count, stepSize * sLast))
 

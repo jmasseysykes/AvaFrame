@@ -12,36 +12,6 @@ log = logging.getLogger(__name__)
 logName = "runRegionalThalweg2DPlot"
 
 
-def xyToProfile(x, y, dem):
-    """
-    for given coordinates (of the talweg) read z values
-    from DEM and compute distance between coordinates
-
-    Parameters
-    ------------
-    x: np.array
-        x coordinates
-    y: np.array
-        y coordinates
-    dem: dict
-        contains dem data
-    """
-    demHeader = dem["header"]
-
-    z, _ = gT.projectOnGrid(
-        x,
-        y,
-        dem["rasterData"],
-        csz=demHeader["cellsize"],
-        xllc=demHeader["xllcenter"],
-        yllc=demHeader["yllcenter"],
-    )
-    s = np.append(np.array([0]), gT.computeLengthOfLine2D(x, y))
-    profile = {"x": x, "y": y, "z": z, "s": s}
-
-    return profile
-
-
 def preparePathGeneralMain(profile, cfgDFAPath, dem):
     """
      prepare thalweg from x and y coordinates:
@@ -76,13 +46,17 @@ def preparePathGeneralMain(profile, cfgDFAPath, dem):
     profileExtended = DFAPathGeneration.resamplePath(cfgDFAPath["PATH"], dem, profileExtended)
     # profileExtended = replaceResampledProfileCore(profileExtended, profileResample)
     for inputPara in ["alpha", "exponent", "zDeltaMax"]:
-        profileExtended[inputPara] = profile[inputPara]
+        try:
+            profileExtended[inputPara] = profile[inputPara]
+        except:
+            continue
 
     return profileAveraged, profileExtended
 
 
 def replaceResampledProfileCore(profile, profileResample):
     """
+    this function is not used now, but could be helpful?
     for all variables (x, y, s, z, zdelta, fluxSum, flowEnergy)
     use the resampled top and bottom (extended) values and the original vlaues inbetween.
 
@@ -156,5 +130,35 @@ def pathExtension(profile, demDict, cfgPathGen):
 
     # extend the bottom quite far
     profile = DFAPathGeneration.extendProfileBottom(cfgPathGen["PATH"], demDict, profile, considerLLC=True)
+
+    return profile
+
+
+def xyToProfile(x, y, dem):
+    """
+    for given coordinates (of the talweg) read z values
+    from DEM and compute distance between coordinates
+
+    Parameters
+    ------------
+    x: np.array
+        x coordinates
+    y: np.array
+        y coordinates
+    dem: dict
+        contains dem data
+    """
+    demHeader = dem["header"]
+
+    z, _ = gT.projectOnGrid(
+        x,
+        y,
+        dem["rasterData"],
+        csz=demHeader["cellsize"],
+        xllc=demHeader["xllcenter"],
+        yllc=demHeader["yllcenter"],
+    )
+    s = np.append(np.array([0]), gT.computeLengthOfLine2D(x, y))
+    profile = {"x": x, "y": y, "z": z, "s": s}
 
     return profile
