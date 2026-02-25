@@ -19,7 +19,7 @@ from avaframe.out3Plot import outCom3Plots
 log = logging.getLogger(__name__)
 
 
-def regionalThalweg2DPlotMain(avalanchedir, cfg):
+def regionalThalweg2DPlotMain(avalanchedir, cfg, simhash=""):
     """
     read in Input data and general function for 2D thalweg plot
 
@@ -39,7 +39,10 @@ def regionalThalweg2DPlotMain(avalanchedir, cfg):
     # and override with settings from config
     cfgDFAPath, cfg = cfgHandling.applyCfgOverride(cfgDFAPath, cfg, DFAPathGeneration, addModValues=False)
 
-    simhash = cfg["GENERAL"].get("simHash")
+    if simhash == "":
+        simhash = cfg["GENERAL"].get("simHash")
+    else:
+        cfg["GENERAL"]["simHash"] = simhash
     module = cfg["GENERAL"].get("modName")
     startRow = cfg["GENERAL"].get("startRow")
     startCol = cfg["GENERAL"].get("startCol")
@@ -210,13 +213,11 @@ def plotDFAGenerationLocation(pathDict, profile, rasterVariable="fpTravelAngleMa
     ax1 = outCom3Plots.avalancheThalwegPlot(ax1, raster, dem, profile)
     ax1.legend()
     # set plot limits depending on thalweg
-    print(np.min(profile["x"]), np.max(profile["x"]), np.min(profile["y"]), np.max(profile["y"]))
     plt.xlim((np.min(profile["x"]) - 100, np.max(profile["x"]) + 100))
     plt.ylim((np.min(profile["y"]) - 100, np.max(profile["y"]) + 100))
-    # ax1 = tools.DFAThalwegPlot(ax1, avaProfile, pathDict, rasterVariable)
+
     outFileNamePart = tools.getOutFileNamePartly(pathDict["titleVariables"])
     outFileName = f"DFA_thalwegLocation_{outFileNamePart}.png"
-    print(ax1.get_xlim(), ax1.get_ylim())
 
     fig.savefig(savePath / outFileName)
     log.info(f"saved plot: {(savePath / outFileName)}")

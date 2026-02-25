@@ -201,19 +201,20 @@ class Path:
 
             values = self.getGenerationList(varName)
 
+            # TODO: now we delete the last point because this can lead to weird directions
             if "CoE" in centerOfs:
                 self.energyGenList = self.getGenerationList("flowEnergy")
                 sumE, coE = self.calcThalwegCenterof(values, self.energyGenList)
                 # TODO: zdelta is 0 in generation 1, so the first value does not make sense
-                setattr(self, f"{varName}CoE", coE[1:])
+                setattr(self, f"{varName}CoE", coE[:-1])
             if "CoF" in centerOfs:
                 self.fluxGenList = self.getGenerationList("flux")
                 sumF, coF = self.calcThalwegCenterof(values, self.fluxGenList)
-                setattr(self, f"{varName}CoF", coF)
+                setattr(self, f"{varName}CoF", coF[:-1])
             if "CoZd" in centerOfs:
                 self.zDeltaGenList = self.getGenerationList("zDelta")
                 sumZd, coZd = self.calcThalwegCenterof(values, self.zDeltaGenList)
-                setattr(self, f"{varName}CoZd", coZd)
+                setattr(self, f"{varName}CoZd", coZd[:-1])
         # for saving RAM, empty the lists
         self.energyGenList = []
         self.fluxGenList = []
