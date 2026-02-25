@@ -79,6 +79,7 @@ def com4FlowPyMain(cfgPath, cfgSetup):
     modelParameters["fluxDistOldVersionBool"] = cfgSetup.getboolean("fluxDistOldVersion")
     modelParameters["calcGeneration"] = cfgSetup.getboolean("calcGeneration")
     modelParameters["calcThalweg"] = cfgSetup.getboolean("calcThalweg")
+    modelParameters["thalwegReleaseArea"] = cfgSetup.getboolean("thalwegReleaseArea")
     modelParameters["thalwegCenterOf"] = cfgSetup.get("thalwegCenterOf")
     modelParameters["thalwegVariables"] = cfgSetup.get("thalwegVariables")
 
@@ -187,7 +188,11 @@ def com4FlowPyMain(cfgPath, cfgSetup):
     else:
         modelPaths["varExponentPath"] = ""
 
-    if "relIdPolygon" in modelPaths["outputFileList"] or "relIdCount" in modelPaths["outputFileList"]:
+    # conditions if relId is used
+    _outputPolygon = "relIdPolygon" in modelPaths["outputFileList"]
+    _outputCount = "relIdCount" in modelPaths["outputFileList"]
+    _thalwegId = modelParameters["calcThalweg"] and modelParameters["thalwegReleaseArea"]
+    if _outputPolygon or _outputCount or _thalwegId:
         modelPaths["relIdPath"] = cfgPath["relIdPath"]
         modelParameters["outputRelIdBool"] = True
     else:

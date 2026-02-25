@@ -207,6 +207,7 @@ def run(optTuple):
             "thalwegDir": optTuple[3]["thalwegDir"],
             "thalwegCenterOf": optTuple[2]["thalwegCenterOf"],
             "thalwegVariables": optTuple[2]["thalwegVariables"],
+            "calcRelID": optTuple[2]["thalwegReleaseArea"],
         }
     else:
         thalwegParameters = None
@@ -890,7 +891,7 @@ def calculation(args):
                     genList.append(cellList)
                     childList = []
 
-            if calcThalweg and relIdBool:
+            if calcThalweg and thalwegParameters["calcRelID"]:
                 # zip the generationLists within one release Id
                 generationListRelId = [
                     (generationThisCell or []) + (generationBefore or [])

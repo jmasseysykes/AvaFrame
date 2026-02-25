@@ -161,12 +161,8 @@ def main(avalancheDir=""):
             log.info("temp folder for simualtion {} already exists - aborting".format(uid))
             sys.exit(1)
         if cfgSetup["calcThalweg"] is True:
-            try:
-                os.makedirs(workDir / res_dir / "thalwegData")
-                thalwegDir = workDir / res_dir / "thalwegData"
-            except FileExistsError:
-                log.info("thalweg folder for simualtion {} already exists - aborting".format(uid))
-                sys.exit(1)
+            thalwegDir = workDir / res_dir / "thalwegData"
+            fU.makeADir(thalwegDir)
         else:
             thalwegDir = ""
         log = logUtils.initiateLogger(res_dir, logName)
