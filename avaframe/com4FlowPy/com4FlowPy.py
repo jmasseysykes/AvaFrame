@@ -79,7 +79,10 @@ def com4FlowPyMain(cfgPath, cfgSetup):
     modelParameters["fluxDistOldVersionBool"] = cfgSetup.getboolean("fluxDistOldVersion")
     modelParameters["calcGeneration"] = cfgSetup.getboolean("calcGeneration")
     modelParameters["calcThalweg"] = cfgSetup.getboolean("calcThalweg")
-    modelParameters["thalwegReleaseArea"] = cfgSetup.getboolean("thalwegReleaseArea")
+    if modelParameters["calcThalweg"]:
+        modelParameters["thalwegReleaseArea"] = cfgSetup.getboolean("thalwegReleaseArea")
+    else:
+        modelParameters["thalwegReleaseArea"] = False
     modelParameters["thalwegCenterOf"] = cfgSetup.get("thalwegCenterOf")
     modelParameters["thalwegVariables"] = cfgSetup.get("thalwegVariables")
 
@@ -191,8 +194,7 @@ def com4FlowPyMain(cfgPath, cfgSetup):
     # conditions if relId is used
     _outputPolygon = "relIdPolygon" in modelPaths["outputFileList"]
     _outputCount = "relIdCount" in modelPaths["outputFileList"]
-    _thalwegId = modelParameters["calcThalweg"] and modelParameters["thalwegReleaseArea"]
-    if _outputPolygon or _outputCount or _thalwegId:
+    if _outputPolygon or _outputCount or modelParameters["thalwegReleaseArea"]:
         modelPaths["relIdPath"] = cfgPath["relIdPath"]
         modelParameters["outputRelIdBool"] = True
     else:
@@ -340,6 +342,14 @@ def checkInputLayerDimensions(modelParameters, modelPaths):
         else:
             log.error("Error: Release Layer doesn't match DEM!")
             sys.exit(1)
+
+        if modelParameters["outputRelIdBool"]:
+            _relIdHeader = IOf.readRasterHeader(modelPaths["relIdPath"])
+            if _demHeader["ncols"] == _relIdHeader["ncols"] and _demHeader["nrows"] == _relIdHeader["nrows"]:
+                log.info("Release ID Layer ok!")
+            else:
+                log.error("Error: Release ID Layer doesn't match DEM!")
+                sys.exit(1)
 
         if modelParameters["infraBool"]:
             _infraHeader = IOf.readRasterHeader(modelPaths["infraPath"])
@@ -500,30 +510,85 @@ def tileInputLayers(modelParameters, modelPaths, rasterAttributes, tilingParamet
 
     log.info("Start Tiling...")
     log.info("---------------------")
+    if modelParameters["thalwegReleaseArea"]:
+        _relIdRasterDict = IOf.readRaster(modelPaths["relIdPath"])
+        _relIdRaster = _relIdRasterDict["rasterData"]
+        exList, eyList = SPAM.getTileEnds(modelPaths["tempDir"], _tileCOLS, _tileROWS, _U, _relIdRaster)
+        print(exList, eyList)
 
-    SPAM.tileRaster(modelPaths["demPath"], "dem", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
-    SPAM.tileRaster(
-        modelPaths["releasePathWork"], "init", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U, isInit=True
-    )
+        SPAM.tileRasterWithIndices(modelPaths["demPath"], "dem", modelPaths["tempDir"], exList, eyList, _U)
+        SPAM.tileRasterWithIndices(
+            modelPaths["releasePathWork"],
+            "init",
+            modelPaths["tempDir"],
+            exList,
+            eyList,
+            _U,
+            isInit=True,
+        )
 
-    if modelParameters["infraBool"]:
-        SPAM.tileRaster(modelPaths["infraPath"], "infra", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
-    if modelParameters["varUmaxBool"]:
+        if modelParameters["infraBool"]:
+            SPAM.tileRasterWithIndices(
+                modelPaths["infraPath"], "infra", modelPaths["tempDir"], exList, eyList, _U
+            )
+        if modelParameters["varUmaxBool"]:
+            SPAM.tileRasterWithIndices(
+                modelPaths["varUmaxPath"], "varUmax", modelPaths["tempDir"], exList, eyList, _U
+            )
+        if modelParameters["varAlphaBool"]:
+            SPAM.tileRasterWithIndices(
+                modelPaths["varAlphaPath"], "varAlpha", modelPaths["tempDir"], exList, eyList, _U
+            )
+        if modelParameters["varExponentBool"]:
+            SPAM.tileRasterWithIndices(
+                modelPaths["varExponentPath"], "varExponent", modelPaths["tempDir"], exList, eyList, _U
+            )
+        if modelParameters["forestBool"]:
+            SPAM.tileRasterWithIndices(
+                modelPaths["forestPath"], "forest", modelPaths["tempDir"], exList, eyList, _U
+            )
+        if modelParameters["outputRelIdBool"]:
+            SPAM.tileRasterWithIndices(
+                modelPaths["relIdPath"], "relId", modelPaths["tempDir"], exList, eyList, _U
+            )
+
+    else:
+        SPAM.tileRaster(modelPaths["demPath"], "dem", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
         SPAM.tileRaster(
-            modelPaths["varUmaxPath"], "varUmax", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
+            modelPaths["releasePathWork"],
+            "init",
+            modelPaths["tempDir"],
+            _tileCOLS,
+            _tileROWS,
+            _U,
+            isInit=True,
         )
-    if modelParameters["varAlphaBool"]:
-        SPAM.tileRaster(
-            modelPaths["varAlphaPath"], "varAlpha", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
-        )
-    if modelParameters["varExponentBool"]:
-        SPAM.tileRaster(
-            modelPaths["varExponentPath"], "varExponent", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
-        )
-    if modelParameters["forestBool"]:
-        SPAM.tileRaster(modelPaths["forestPath"], "forest", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
-    if modelParameters["outputRelIdBool"]:
-        SPAM.tileRaster(modelPaths["relIdPath"], "relId", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U)
+
+        if modelParameters["infraBool"]:
+            SPAM.tileRaster(
+                modelPaths["infraPath"], "infra", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
+            )
+        if modelParameters["varUmaxBool"]:
+            SPAM.tileRaster(
+                modelPaths["varUmaxPath"], "varUmax", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
+            )
+        if modelParameters["varAlphaBool"]:
+            SPAM.tileRaster(
+                modelPaths["varAlphaPath"], "varAlpha", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
+            )
+        if modelParameters["varExponentBool"]:
+            SPAM.tileRaster(
+                modelPaths["varExponentPath"], "varExponent", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
+            )
+        if modelParameters["forestBool"]:
+            SPAM.tileRaster(
+                modelPaths["forestPath"], "forest", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
+            )
+        if modelParameters["outputRelIdBool"]:
+            SPAM.tileRaster(
+                modelPaths["relIdPath"], "relId", modelPaths["tempDir"], _tileCOLS, _tileROWS, _U
+            )
+
     log.info("Finished Tiling All Input Rasters.")
     log.info("==================================")
 

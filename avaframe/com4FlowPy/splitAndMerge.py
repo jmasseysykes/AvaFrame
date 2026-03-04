@@ -178,6 +178,263 @@ def tileRaster(fNameIn, fNameOut, dirName, xDim, yDim, U, isInit=False):
     # return largeRaster
 
 
+def tileRasterWithIndices(fNameIn, fNameOut, dirName, exList, eyList, U, isInit=False):
+    """
+    divides a raster into tiles and saves the tiles
+    the tile size is determined by the indices of the tile ends and can vary within the tiles.
+
+    Parameters
+    -----------
+    fNameIn : str
+        path to raster that is tiled
+    fNameOut: str
+        name of saved raster file
+    dirName: str
+        path to folder, where tiled raster is saved (temp - folder)
+    exList: list
+        contains end indices of tiles in x dimension (number of raster columns)
+    eyList: list
+        contains end indices of tiles in y dimension (number of raster columns)
+    U: int
+        size of tile overlapping (number of raster cells)
+    isInit: bool
+        if isInit is True, edges are assigned to -9999 (default: False)
+    """
+
+    log.info("tile rasters using ends!")
+
+    # largeRaster, largeHeader = iof.f_readASC(fNameIn, dType='float')
+    largeData = IOf.readRaster(fNameIn, noDataToNan=False)
+    largeRaster = largeData["rasterData"]
+
+    i, j, imax, jmax = 0, 0, 0, 0
+    sX, sY, eX, eY = 0, 0, 0, 0
+
+    JMAX = len(exList) - 1
+    IMAX = len(eyList) - 1
+
+    if isInit is False:
+        for eY in eyList:
+            for eX in exList:
+                rangeRowsCols = ((sY, eY), (sX, eX))
+                pickle.dump(rangeRowsCols, open(dirName / ("ext_%i_%i" % (i, j)), "wb"))
+
+                np.save(dirName / ("%s_%i_%i" % (fNameOut, i, j)), largeRaster[sY:eY, sX:eX])
+                log.info("saved %s - TileNr.: %i_%i", fNameOut, i, j)
+
+                sX = eX - 2 * U
+                jmax = max(j, jmax)
+                j += 1
+            sX, j, eX = 0, 0, 0
+            sY = eY - 2 * U
+            imax = max(i, imax)
+            i += 1
+    else:
+        for eY in eyList:
+            for eX in exList:
+
+                rangeRowsCols = ((sY, eY), (sX, eX))
+                pickle.dump(rangeRowsCols, open(dirName / ("ext_%i_%i" % (i, j)), "wb"))
+
+                initRas = largeRaster[sY:eY, sX:eX].copy()
+                if j != JMAX:
+                    initRas[:, -U:] = -9999  # Rand im Osten
+                if i != 0:
+                    initRas[0:U, :] = -9999  # Rand im Norden
+                if j != 0:
+                    initRas[:, 0:U] = -9999  # Rand im Westen
+                if i != IMAX:
+                    initRas[-U:, :] = -9999  # Rand im Sueden
+
+                np.save(dirName / ("%s_%i_%i" % (fNameOut, i, j)), initRas)
+                del initRas
+                log.info("saved %s - TileNr.: %i_%i", fNameOut, i, j)
+
+                sX = eX - 2 * U
+                jmax = max(j, jmax)
+                j += 1
+            sX, j, eX = 0, 0, 0
+            sY = eY - 2 * U
+            imax = max(i, imax)
+            i += 1
+
+    pickle.dump((imax, jmax), open(dirName / "nTiles", "wb"))
+    log.info("finished tiling %s: nTiles=%s" % (fNameOut, (imax + 1) * (jmax + 1)))
+    log.info("----------------------------")
+    del largeRaster
+    gc.collect()
+
+
+def getTileEnds(dirName, xDim, yDim, U, relIdRaster):
+    """
+    divides a raster into tiles and saves the tiles
+
+    Parameters
+    -----------
+    dirName: str
+        path to folder, where tiled raster is saved (temp - folder)
+    xDim: int
+        minimum size of one tile in x dimension (number of raster columns)
+    yDim: int
+        minimum size of one tile in y dimension (number of raster rows)
+    U: int
+        size of tile overlapping (number of raster cells)
+
+    Returns
+    -------------
+    exList: list
+        contains end x - indices of the tiles
+    eyList: list
+        contains end y - indices of the tiles
+    """
+    log.info("get tile ends")
+    i, j, imax, jmax = 0, 0, 0, 0
+    sX, sY, eX, eY = 0, 0, 0, 0
+
+    nrows, ncols = relIdRaster.shape[0], relIdRaster.shape[1]
+    pickle.dump((nrows, ncols), open(dirName / "extentLarge", "wb"))
+
+    I, J, IMAX, JMAX = 0, 0, 0, 0
+
+    # compute the maximum or tiles in x and y direction are possible
+    while eY < nrows:
+        eY = sY + yDim
+        while eX < ncols:
+            eX = sX + xDim
+
+            sX = eX - 2 * U
+            JMAX = max(J, JMAX)
+            J += 1
+        sX, J, eX = 0, 0, 0
+        sY = eY - 2 * U
+        IMAX = max(I, IMAX)
+        I += 1
+
+    sX, sY, eX, eY = 0, 0, 0, 0
+    exList = []
+    eyList = []
+    i, j, imax, jmax = 0, 0, 0, 0
+
+    while eY < nrows:
+        eY = sY + yDim
+
+        relIdSY = 0
+        relIdEY = ncols
+        if i != 0:
+            relIdEY = eY - U  # the tile in the South
+        if i != IMAX:
+            relIdSY = sY + U  # the tile in the North
+        shiftCountY = 0
+
+        # iterate as long as necessary that the y - end of the tile does not cut a PRA
+        while True:
+            if i == IMAX:
+                print(eY)
+                # the border tile
+                eyList.append(eY)
+                break
+            mask = np.zeros_like(relIdRaster)
+            mask[relIdSY:relIdEY, :] = 1
+            idsIn, idsOut = getMaskedRasters(mask, relIdRaster)
+
+            if np.any(np.isin(idsIn, idsOut)):
+                print("shiftCountY", shiftCountY)
+                print(idsIn, idsOut)
+                shiftCountY += 1
+                eY += 1
+                relIdEY += 1
+                # relIdEY is relIdSY in the next iteration, so we only need to search for the end indices
+            else:
+                print("list", eY)
+                eyList.append(eY)
+                break
+        if shiftCountY > 0:
+            log.info(
+                f"tiling would divide a release area, tiling size (in y direction) changed by {shiftCountY} cells."
+            )
+
+        sY = eY - 2 * U
+        print(sY)
+        imax = max(i, imax)
+        i += 1
+
+    while eX < ncols:
+        eX = sX + xDim
+
+        shiftCountX = 0
+
+        while True:
+            # iterate as long as necessary that the x - end of the tile does not cut a PRA
+            if j == JMAX:
+                print(eX)
+                # the border tile
+                exList.append(eX)
+                break
+            relIdSX = 0
+            relIdEX = nrows
+            if j != JMAX:
+                relIdEX = eX - U
+            if j != 0:
+                relIdSX = sX + U
+
+            mask = np.zeros_like(relIdRaster)
+            mask[:, relIdSX:relIdEX] = 1
+            idsIn, idsOut = getMaskedRasters(mask, relIdRaster)
+
+            if np.any(np.isin(idsIn, idsOut)):
+                shiftCountX += 1
+                eX += 1
+                relIdEX += 1
+            else:
+                print(eX)
+                exList.append(eX)
+                break
+
+        if shiftCountX > 0:
+            log.info(
+                f"tiling would divide a release area, tiling size (in x direction) changed by {shiftCountX} cells."
+            )
+        sX = eX - 2 * U
+        jmax = max(j, jmax)
+        j += 1
+
+    pickle.dump((imax, jmax), open(dirName / "nTiles", "wb"))
+    log.info("nTiles=%s" % ((imax + 1) * (jmax + 1)))
+    log.info("----------------------------")
+    gc.collect()
+    return exList, eyList
+
+
+def getMaskedRasters(mask, raster):
+    """
+    get unique values of a raster within and outside a mask
+
+    Parameters
+    -----------
+    mask : numpy array
+        mask that contains 1 (inside) and 0 (outside)
+    raster : numpy array
+        raster values
+
+    Returns
+    -------------
+    idsIn: numpy array
+        unique values of raster inside mask
+    idsOut: numpy array
+        unique values of raster outside mask
+
+    """
+
+    relIdInside = np.where(mask == 1, raster, -9999)
+    relIdOutside = np.where(mask == 0, raster, -9999)
+
+    idsIn = np.unique(relIdInside)
+    idsOut = np.unique(relIdOutside)
+    idsIn = idsIn[idsIn > 0]
+    idsOut = idsOut[idsOut > 0]
+    return idsIn, idsOut
+
+
 def mergeRaster(inDirPath, fName, method="max"):
     """
     Merges the results for each tile to one array using the
