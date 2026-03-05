@@ -318,34 +318,28 @@ def getTileEnds(dirName, xDim, yDim, U, relIdRaster):
     while eY < nrows:
         eY = sY + yDim
 
-        relIdSY = 0
-        relIdEY = ncols
-        if i != 0:
-            relIdEY = eY - U  # the tile in the South
-        if i != IMAX:
-            relIdSY = sY + U  # the tile in the North
-        shiftCountY = 0
-
         # iterate as long as necessary that the y - end of the tile does not cut a PRA
         while True:
             if i == IMAX:
-                print(eY)
                 # the border tile
                 eyList.append(eY)
                 break
+            relIdSY = 0
+            relIdEY = ncols
+            if i != 0:
+                relIdEY = eY - U  # the tile in the South
+            if i != IMAX:
+                relIdSY = sY + U  # the tile in the North
+            shiftCountY = 0
             mask = np.zeros_like(relIdRaster)
             mask[relIdSY:relIdEY, :] = 1
             idsIn, idsOut = getMaskedRasters(mask, relIdRaster)
 
             if np.any(np.isin(idsIn, idsOut)):
-                print("shiftCountY", shiftCountY)
-                print(idsIn, idsOut)
                 shiftCountY += 1
                 eY += 1
-                relIdEY += 1
                 # relIdEY is relIdSY in the next iteration, so we only need to search for the end indices
             else:
-                print("list", eY)
                 eyList.append(eY)
                 break
         if shiftCountY > 0:
@@ -354,7 +348,6 @@ def getTileEnds(dirName, xDim, yDim, U, relIdRaster):
             )
 
         sY = eY - 2 * U
-        print(sY)
         imax = max(i, imax)
         i += 1
 
@@ -366,7 +359,6 @@ def getTileEnds(dirName, xDim, yDim, U, relIdRaster):
         while True:
             # iterate as long as necessary that the x - end of the tile does not cut a PRA
             if j == JMAX:
-                print(eX)
                 # the border tile
                 exList.append(eX)
                 break
@@ -384,9 +376,7 @@ def getTileEnds(dirName, xDim, yDim, U, relIdRaster):
             if np.any(np.isin(idsIn, idsOut)):
                 shiftCountX += 1
                 eX += 1
-                relIdEX += 1
             else:
-                print(eX)
                 exList.append(eX)
                 break
 
