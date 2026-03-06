@@ -310,6 +310,8 @@ class Path:
         self.getCenterofs(variables, centerOfs)
         for co in centerOfs:
             # convert column and row to coordinates s, y
+            # TODO: when there are more than one tile, this computation is wrong!
+            # TODO: (xllcenter and yllcenter are from the whole DEM, but row and cols are related to the tiles!!!)
             x, y = gT.indicesToCoords(
                 getattr(self, f"col{co}"), getattr(self, f"row{co}"), self.rasterAttributes
             )
