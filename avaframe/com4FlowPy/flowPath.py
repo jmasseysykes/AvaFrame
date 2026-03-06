@@ -220,6 +220,31 @@ class Path:
         self.fluxGenList = []
         self.zDeltaGenList = []
 
+    def correctIndicesTile(self, row, col):
+        """
+        correct row and col from the tile to the whole DEM extent
+
+        Parameters
+        --------------
+        row: numpy array
+            row in the tile
+        col: numpy array
+            col in the tile
+
+        Returns
+        -------------
+        rowLarge: numpy array
+            row in the whole DEM extent
+        colLarge: numpy array
+            col in the whole DEM extent
+        """
+        ((sY, _), (sX, _)) = self.rasterAttributes["extentTile"]
+
+        rowLarge = row + sY
+        colLarge = col + sX
+
+        return (rowLarge, colLarge)
+
     def saveDict(self, saveDir, centerOfs, variables):
         """
         save thalweg data. (One file per thalweg)
@@ -310,12 +335,15 @@ class Path:
         self.getCenterofs(variables, centerOfs)
         for co in centerOfs:
             # convert column and row to coordinates s, y
-            # TODO: when there are more than one tile, this computation is wrong!
-            # TODO: (xllcenter and yllcenter are from the whole DEM, but row and cols are related to the tiles!!!)
-            x, y = gT.indicesToCoords(
-                getattr(self, f"col{co}"), getattr(self, f"row{co}"), self.rasterAttributes
-            )
+            # TODO: when there are more than one tile, think if the other outputs need to be corrected??
+            colCentered = getattr(self, f"col{co}")
+            rowCentered = getattr(self, f"row{co}")
+            rowLarge, colLarge = self.correctIndicesTile(rowCentered, colCentered)
+
+            x, y = gT.indicesToCoords(colLarge, rowLarge, self.rasterAttributes)
             setattr(self, f"x{co}", x)
             setattr(self, f"y{co}", y)
+            setattr(self, f"col{co}", colLarge)
+            setattr(self, f"row{co}", rowLarge)
             # update y coordinate
         self.saveDict(saveDir, centerOfs, variables)

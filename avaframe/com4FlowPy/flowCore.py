@@ -227,6 +227,8 @@ def run(optTuple):
 
     dem = np.load(tempDir / ("dem_%s_%s.npy" % (optTuple[0], optTuple[1])))
     release = np.load(tempDir / ("init_%s_%s.npy" % (optTuple[0], optTuple[1])))
+    extentTile = np.load(tempDir / ("ext_%s_%s" % (optTuple[0], optTuple[1])), allow_pickle=True)
+    rasterAttributes["extentTile"] = extentTile
     if infraBool:
         infra = np.load(tempDir / ("infra_%s_%s.npy" % (optTuple[0], optTuple[1])))
     else:
