@@ -514,7 +514,6 @@ def tileInputLayers(modelParameters, modelPaths, rasterAttributes, tilingParamet
         _relIdRasterDict = IOf.readRaster(modelPaths["relIdPath"])
         _relIdRaster = _relIdRasterDict["rasterData"]
         exList, eyList = SPAM.getTileEnds(modelPaths["tempDir"], _tileCOLS, _tileROWS, _U, _relIdRaster)
-        print(exList, eyList)
 
         SPAM.tileRasterWithIndices(modelPaths["demPath"], "dem", modelPaths["tempDir"], exList, eyList, _U)
         SPAM.tileRasterWithIndices(

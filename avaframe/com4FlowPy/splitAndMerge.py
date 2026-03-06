@@ -317,20 +317,20 @@ def getTileEnds(dirName, xDim, yDim, U, relIdRaster):
 
     while eY < nrows:
         eY = sY + yDim
-
+        shiftCountY = 0
         # iterate as long as necessary that the y - end of the tile does not cut a PRA
         while True:
+            # TODO: loop stops if ey = nrows??
             if i == IMAX:
                 # the border tile
                 eyList.append(eY)
                 break
+
             relIdSY = 0
-            relIdEY = ncols
-            if i != 0:
-                relIdEY = eY - U  # the tile in the South
-            if i != IMAX:
-                relIdSY = sY + U  # the tile in the North
-            shiftCountY = 0
+            relIdEY = eY - U
+            if j != 0:
+                relIdSY = sY + U
+
             mask = np.zeros_like(relIdRaster)
             mask[relIdSY:relIdEY, :] = 1
             idsIn, idsOut = getMaskedRasters(mask, relIdRaster)
@@ -338,6 +338,7 @@ def getTileEnds(dirName, xDim, yDim, U, relIdRaster):
             if np.any(np.isin(idsIn, idsOut)):
                 shiftCountY += 1
                 eY += 1
+
                 # relIdEY is relIdSY in the next iteration, so we only need to search for the end indices
             else:
                 eyList.append(eY)
@@ -363,9 +364,7 @@ def getTileEnds(dirName, xDim, yDim, U, relIdRaster):
                 exList.append(eX)
                 break
             relIdSX = 0
-            relIdEX = nrows
-            if j != JMAX:
-                relIdEX = eX - U
+            relIdEX = eX - U
             if j != 0:
                 relIdSX = sX + U
 
