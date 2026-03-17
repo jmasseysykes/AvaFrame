@@ -7,7 +7,9 @@ import numpy as np
 import pathlib
 import rasterio
 import logging
+import os
 from cmcrameri import cm as cmapCrameri
+import matplotlib.pyplot as plt
 from matplotlib.colors import BoundaryNorm
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import Patch
@@ -487,3 +489,247 @@ def savePickle(profileExtended, inFileName):
 
     with open(outFileName, "wb") as handle:
         pickle.dump(profileExtended, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def plotBoxplot(pathDict, cfg, title=""):
+    """
+    shows and potentially saves Violinplot and Boxplot
+
+    Parameters:
+    -----------
+    path: str
+        OutputPath of the FlowPy simulation
+    dataNan: np.array
+        data that is analysed and plotted (can contain nans)
+    title: str
+        title for the plot
+    """
+    path = pathDict["pathToOutput"]
+    cfgGen = cfg["GENERAL"]
+    cfgSize = cfg["SIZECLASS"]
+    varName = cfgGen.get("statisticVariable")
+    centerOf = cfgGen.get("centerOfVariable")
+    ylabel = getYlabelBoxplot(varName)
+
+    dataNan = getDataBoxplots(path, varName, centerOf)
+
+    data = np.delete(dataNan, np.where(np.isnan(dataNan)))
+    fig, ax2 = plt.subplots()  # figsize = [4,5])
+    # fig.tight_layout()
+    labels = [f" (n = {len(data)})"]
+    if cfgGen.getboolean("plotLogScale"):
+        ax2.set_yscale("log")
+    ax2.violinplot([data])
+    ax2.boxplot([data], whis=0, widths=0.07, showfliers=False, medianprops={"color": "blue"})
+    ax2.set_xticks(np.arange(1, len(labels) + 1), labels=labels, fontsize=13)
+    ax2.set_xlim(0.25, len(labels) + 0.75)
+
+    # Color background
+    if varName in ["travelLengthMax", "impressure"]:
+
+        ysize1Max = cfgSize.getint(f"{varName}Size1Max")
+        ysize2Max = cfgSize.getint(f"{varName}Size2Max")
+        ysize3Max = cfgSize.getint(f"{varName}Size3Max")
+        ysize4Max = cfgSize.getint(f"{varName}Size4Max")
+        y_min, y_max = ax2.get_ylim()
+        ax2.axhspan(0, ysize1Max, facecolor="#" + cfgSize["colorSize1"], alpha=0.2)  # Avalanche size 1
+        ax2.axhspan(
+            ysize1Max,
+            ysize2Max,
+            facecolor="#" + cfgSize["colorSize2"],
+            alpha=0.2,
+        )  # size 2
+        ax2.axhspan(
+            ysize2Max,
+            ysize3Max,
+            facecolor="#" + cfgSize["colorSize3"],
+            alpha=0.2,
+        )  # size 3
+        ax2.axhspan(
+            ysize3Max,
+            ysize4Max,
+            facecolor="#" + cfgSize["colorSize4"],
+            alpha=0.2,
+        )  # size 4
+        ax2.axhspan(ysize4Max, y_max, facecolor="#" + cfgSize["colorSize5"], alpha=0.2)  # size 5
+
+        if varName == "impressure":
+            class_lab = "$C_{ip}$"
+        # elif varName == "path_area":
+        #   class_lab = "$B_{aa}$"
+        elif varName == "travelLengthMax":
+            class_lab = "$E_{rl}$"
+        else:
+            class_lab = ""
+
+        ax2.text(
+            1.5,
+            0 + (ysize1Max * 0.75),
+            f"{class_lab} 1",
+            ha="center",
+            va="center",
+            color="#008B8B",
+            fontsize=13,
+        )
+        ax2.text(
+            1.5,
+            ysize1Max + (ysize2Max - ysize1Max) / 2,
+            f"{class_lab} 2",
+            ha="center",
+            va="center",
+            color="#4682B4",
+            fontsize=13,
+        )
+        ax2.text(
+            1.5,
+            ysize2Max + (ysize3Max - ysize2Max) / 2,
+            f"{class_lab} 3",
+            ha="center",
+            va="center",
+            color="#6495ED",
+            fontsize=13,
+        )
+        ax2.text(
+            1.5,
+            ysize3Max + (ysize4Max - ysize3Max) / 2,
+            f"{class_lab} 4",
+            ha="center",
+            va="center",
+            color="#CD5C5C",
+            fontsize=13,
+        )
+        ax2.text(
+            1.5,
+            ysize4Max + (y_max - ysize4Max) / 2,
+            f"{class_lab} 5",
+            ha="center",
+            va="center",
+            color="#B22222",
+            fontsize=13,
+        )
+        ax2.set_yticks([ysize1Max, ysize2Max, ysize3Max, ysize4Max])
+        ax2.set_yticklabels([ysize1Max, ysize2Max, ysize3Max, ysize4Max], fontsize=13)
+
+    plt.ylabel(ylabel, fontsize=13)
+
+    if title == "":
+        title = f"thalwege {centerOf}"
+    plt.title(title)
+    plt.grid(True)
+    savePath = pathDict["savePath"]
+    simhash = pathDict["titleVariables"]["simHash"]
+    fig.savefig(f"{savePath}/ThalwegStatistic_{simhash}_{varName}{centerOf}.png")
+
+
+def getDataBoxplots(path, variable, centerOf):
+    """
+    get the thalweg data
+
+    Parameters:
+    -----------
+    path: pathlib Path
+        OutputPath of the FlowPy simulation
+    variable: str
+        name of output variable that is analysed and plotted (e.g, impressure, travelLengthMax)
+
+    Returns:
+    -----------
+    data: numpy array
+        maximum value of the parameter varName of all thalwegs
+    """
+
+    data = ""
+
+    if variable == "velocity":
+        varName = "velocity"
+        variable = "zdelta"
+
+    elif variable == "impressure":
+        varName = "impressure"
+        variable = f"zdelta"
+    else:
+        varName = f"{variable}"
+
+    dataDict = maxParameterOfAllThalwegs(path, variable, centerOf)
+    data = np.array(dataDict[variable])
+    if varName == "velocity":
+        data = zDelta2velocity(data)
+
+    if varName == "impressure":
+        velo = zDelta2velocity(data)
+
+        rho = 200  # km m-3
+        data = rho * velo**2 * 1e-3
+
+    return data
+
+
+def maxParameterOfAllThalwegs(path, variableList, centerOf):
+    """
+    get thalweg data (maximum per thalweg)
+
+    Parameters:
+    -----------
+    path: pathlib Path
+        Thalweg-Output Path of the FlowPy simulation
+    variable: str
+        name of thalweg parameter
+
+    Returns:
+    -----------
+    variableValues: list
+        maximum values of the parameter variable of all thalwegs
+    """
+    if type(variableList) == str:
+        variableList = [variableList]
+    variableValues = {}
+    for variable in variableList:
+        variableValues[variable] = []
+        for filename in os.listdir(path / "thalwegData"):
+            # Check if the filename starts with 'thalweg'
+            if filename.startswith(f"thalwegData_{centerOf}"):
+                # Construct full file path
+                file_path = path / "thalwegData" / filename
+                data = np.load(file_path, allow_pickle="TRUE")
+                xLast = np.array([data["x"][-1]])
+                yLast = np.array([data["y"][-1]])
+
+                outputRasterFile = getRasterFile(path, variable=variable)
+                valueLast = getThalwegValuesFromRaster(outputRasterFile, xLast, yLast)
+                variableValues[variable].append(valueLast)
+
+                # for plotting averaged values:
+                # variableValues[variable].append(np.nanmax(data[variable]))
+    return variableValues
+
+
+def getYlabelBoxplot(variable):
+    """
+    return ylabel
+
+    Parameters:
+    --------------
+    variable: str
+        name of thalweg parameter that is plotted
+
+    Returns:
+    --------------
+    ylabel: str
+        ylabel for plot
+    """
+
+    if variable == "velocity":
+        ylabel = "velocity [m/s]"
+    elif variable == "impressure":
+        ylabel = "impact pressure [kPa]"
+    elif variable == "travelLengthMax":
+        ylabel = "runout length [m]"
+    elif variable == "zDelta":
+        ylabel = "zDelta [m]"
+    elif variable == "flux":
+        ylabel = "flux"
+    else:
+        message = f"{variable} is not a valid thalweg variable for the statistic boxplot"
+        log.error(message)
+        raise ValueError(message)
+    return ylabel

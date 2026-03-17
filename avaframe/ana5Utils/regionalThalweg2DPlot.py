@@ -138,6 +138,8 @@ def regionalThalweg2DPlotMain(avalanchedir, cfg, simhash=""):
         plotDFAThalwegAltitude(pathDict, profileExtended)
         plotDFAGenerationLocation(pathDict, profileExtended, rasterVariable="fpTravelAngleMax")
 
+    tools.plotBoxplot(pathDict, cfg)
+
 
 def plotThalweg2D(pathDict, cfg, dataThalweg):
     """
