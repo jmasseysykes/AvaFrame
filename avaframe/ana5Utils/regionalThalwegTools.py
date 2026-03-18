@@ -532,6 +532,7 @@ def plotBoxplot(pathDict, cfg, title=""):
         ysize3Max = cfgSize.getint(f"{varName}Size3Max")
         ysize4Max = cfgSize.getint(f"{varName}Size4Max")
         y_min, y_max = ax2.get_ylim()
+        y_max = np.max([y_max, 1.1 * ysize4Max])
         ax2.axhspan(0, ysize1Max, facecolor="#" + cfgSize["colorSize1"], alpha=0.2)  # Avalanche size 1
         ax2.axhspan(
             ysize1Max,
@@ -689,14 +690,15 @@ def maxParameterOfAllThalwegs(path, variableList, centerOf):
             # Check if the filename starts with 'thalweg'
             if filename.startswith(f"thalwegData_{centerOf}"):
                 # Construct full file path
-                file_path = path / "thalwegData" / filename
-                data = np.load(file_path, allow_pickle="TRUE")
-                xLast = np.array([data["x"][-1]])
-                yLast = np.array([data["y"][-1]])
+                filePath = path / "thalwegData" / filename
+                data = np.load(filePath, allow_pickle="TRUE")
+                x = data["x"]
+                y = data["y"]
 
                 outputRasterFile = getRasterFile(path, variable=variable)
-                valueLast = getThalwegValuesFromRaster(outputRasterFile, xLast, yLast)
-                variableValues[variable].append(valueLast)
+                valuesThalweg = getThalwegValuesFromRaster(outputRasterFile, x, y)
+                valueMax = np.nanmax(valuesThalweg)
+                variableValues[variable].append(valueMax)
 
                 # for plotting averaged values:
                 # variableValues[variable].append(np.nanmax(data[variable]))
@@ -719,13 +721,13 @@ def getYlabelBoxplot(variable):
     """
 
     if variable == "velocity":
-        ylabel = "velocity [m/s]"
+        ylabel = "max. velocity [m/s]"
     elif variable == "impressure":
-        ylabel = "impact pressure [kPa]"
+        ylabel = "max. impact pressure [kPa]"
     elif variable == "travelLengthMax":
         ylabel = "runout length [m]"
     elif variable == "zDelta":
-        ylabel = "zDelta [m]"
+        ylabel = "max. zDelta [m]"
     elif variable == "flux":
         ylabel = "flux"
     else:
