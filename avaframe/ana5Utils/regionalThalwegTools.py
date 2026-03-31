@@ -49,8 +49,10 @@ def getRasterFile(path, variable=""):
         files = sorted(list(path.glob(f"*{variable}.asc")))
         if len(files) == 0:
             files = sorted(list(path.glob(f"*{variable}.tif")))
-        raster = rasterio.open(files[0])
-        # filePath = pathlib.Path(files[0])
+        if len(files) == 0:
+            message = f"No raster file with {variable} found in {path}."
+            log.error(message)
+            raise FileNotFoundError(message)
         filePath = files[0]
     return filePath
 
