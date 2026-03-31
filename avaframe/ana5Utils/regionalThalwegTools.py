@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import BoundaryNorm
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import Patch
+import geopandas as gpd
 import pickle
 
 import avaframe.in2Trans.rasterUtils as rasterUtils
@@ -24,9 +25,9 @@ import avaframe.in3Utils.geoTrans as gT
 log = logging.getLogger(__name__)
 
 
-def getRasterFile(path, variable=""):
+def getRasterFile(path, variable="", ext=""):
     """
-    read in raster (*.asc or *.tif)
+    search for raster (*.asc or *.tif) except "ext" is given then serach for that extent
 
     Parameters:
     -----------
@@ -34,6 +35,8 @@ def getRasterFile(path, variable=""):
         path to raster file or folder containing raster
     variable: str
         test part that is searched for (name is in file name)
+    ext: str
+        extent of file
 
     Returns:
     -----------
@@ -46,14 +49,23 @@ def getRasterFile(path, variable=""):
         raster = rasterio.open(path)
         filePath = path
     except:
-        files = sorted(list(path.glob(f"*{variable}.asc")))
-        if len(files) == 0:
-            files = sorted(list(path.glob(f"*{variable}.tif")))
-        if len(files) == 0:
-            message = f"No raster file with {variable} found in {path}."
-            log.error(message)
-            raise FileNotFoundError(message)
-        filePath = files[0]
+        if ext == "":
+            files = sorted(list(path.glob(f"*{variable}.asc")))
+            if len(files) == 0:
+                files = sorted(list(path.glob(f"*{variable}.tif")))
+            if len(files) == 0:
+                message = f"No raster file with {variable} found in {path}."
+                log.error(message)
+                raise FileNotFoundError(message)
+            filePath = files[0]
+        else:
+            files = sorted(list(path.glob(f"*{variable}.{ext}")))
+            if len(files) == 0:
+                message = f"No {ext} file with {variable} and found in {path}."
+                log.info(message)
+                filePath = ""
+            else:
+                filePath = files[0]
     return filePath
 
 
@@ -154,25 +166,29 @@ def plotField(ax, fig, pathDict, variable, thalwegPra=False):
     ax: matplotlib axis
         axis containing hillshade and output raster of simulation
     """
-    pathInput = pathDict["avalancheDir"] / "Inputs"
-    praPath = getRasterFile(pathInput / "REL")
-
     demDict = gI.readDEM(pathDict["avalancheDir"])
     dem = demDict["rasterData"]
     header = demDict["header"]
     cellSize = header["cellsize"]
     clabel = {
-        "zdelta": "zDelta [m]",
-        "fpTravelAngle": "travel angle [°]",
-        "travelLength": "travel length [m]",
-        "velocityMax": "velocity [m/s]",
+        "zdelta": "max. zDelta [m]",
+        "fpTravelAngle": "max. travel angle [°]",
+        "travelLength": "max. travel length [m]",
+        "velocityMax": "max. velocity [m/s]",
     }
+    if variable == "velocityMax":
+        variableOut = "zdelta"
+    else:
+        variableOut = variable
 
-    file = getRasterFile(pathDict["pathToOutput"], variable=variable)
+    file = getRasterFile(pathDict["pathToOutput"], variable=variableOut)
     rasterDict = rasterUtils.readRaster(file)
     raster = rasterDict["rasterData"]
-    rasterPraDict = rasterUtils.readRaster(praPath)
-    rasterPra = rasterPraDict["rasterData"]
+    if variable == "velocityMax":
+        raster = zDelta2velocity(raster)
+
+    # rasterPraDict = rasterUtils.readRaster(praPath)
+    # rasterPra = rasterPraDict["rasterData"]
 
     rowsMin, rowsMax, colsMin, colsMax = pU.constrainPlotsToData(raster, header["cellsize"], buffer=150)
     rowsMin = int(rowsMin)
@@ -181,13 +197,13 @@ def plotField(ax, fig, pathDict, variable, thalwegPra=False):
     colsMax = int(colsMax)
     dataConstrained = raster[rowsMin : rowsMax + 1, colsMin : colsMax + 1]
     demConstrained = dem[rowsMin : rowsMax + 1, colsMin : colsMax + 1]
-    praConstrained = rasterPra[rowsMin : rowsMax + 1, colsMin : colsMax + 1]
+    # praConstrained = rasterPra[rowsMin : rowsMax + 1, colsMin : colsMax + 1]
 
     data = np.ma.masked_where(dataConstrained == 0.0, dataConstrained)
     dataConstrained = np.ma.masked_where(dataConstrained == 0.0, dataConstrained)
 
     # set 0 and smaller to np.nan
-    praConstrained = np.where(praConstrained > 0, 1.0, np.nan)
+    # praConstrained = np.where(praConstrained > 0, 1.0, np.nan)
 
     # Set extent of peak file
     ny = data.shape[0]
@@ -233,6 +249,7 @@ def plotField(ax, fig, pathDict, variable, thalwegPra=False):
         alpha=0.7,
     )
     fig.colorbar(f, ax=ax, label=clabel[variable])
+    """
     if thalwegPra:
         cmapPra = ListedColormap(["magenta"])
         cmapPra.set_bad(color="none")
@@ -246,7 +263,7 @@ def plotField(ax, fig, pathDict, variable, thalwegPra=False):
             zorder=3,
             alpha=0.5,
             interpolation="none",
-        )
+        )"""
 
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
@@ -283,14 +300,17 @@ def makeFieldPlot(ax, fig, pathDict, variable, xThalweg, yThalweg, dataThalweg, 
     ax: matplotlib axis
         Axis containg the plot
     """
+    colorThalweg = "m"
     centerOf = pathDict["titleVariables"]["centerOf"]
     ax = plotField(ax, fig, pathDict, variable, thalwegPra=thalwegPra)
     # ax.scatter(xThalweg, yThalweg, c="r", s=0.3, zorder=5, label=f"thalweg {centerOf}")
     # ax.scatter(xThalweg[0], yThalweg[0], c="b", s=2.0, zorder=6, label="startcell")
     for i, (x, y) in enumerate(zip(xThalweg, yThalweg)):
-        ax.plot(x, y, "-", c="k", lw=0.5, zorder=7, label=f"thalweg {centerOf}" if i == 0 else None)
-        ax.plot(dataThalweg["x"], dataThalweg["y"], "-", c="m", zorder=8)
+        ax.plot(x, y, "-", c=colorThalweg, zorder=7, label=f"thalweg {centerOf}" if i == 0 else None)
+        ax.plot(dataThalweg["x"], dataThalweg["y"], "-", c=colorThalweg, zorder=8)
     ax.legend()
+    ax = addReleaseAreaToPlot(ax, pathDict)
+    """
     if thalwegPra:
         # add PRA path to existing legend
         handles, labels = ax.get_legend_handles_labels()
@@ -298,10 +318,11 @@ def makeFieldPlot(ax, fig, pathDict, variable, xThalweg, yThalweg, dataThalweg, 
         handles.append(praPath)
         labels.append(praPath.get_label())
         ax.legend(handles=handles, labels=labels)
+    """
     return fig, ax
 
 
-def makeThalwegPlot(ax, dataThalweg, pathDict, centerOf=""):
+def makeThalwegPlot(ax, dataThalweg, pathDict):
     """make a 2D thalweg plot for FlowPy output
 
     Parameters
@@ -425,6 +446,7 @@ def makeThalwegPlot(ax, dataThalweg, pathDict, centerOf=""):
     ax.set(ylabel="elevation [m]")
     ax.legend()
 
+    '''
     ax.text(
         max(s) * 0.5,
         max(z) * 0.95,
@@ -435,7 +457,7 @@ def makeThalwegPlot(ax, dataThalweg, pathDict, centerOf=""):
         ),
         va="top",
         ha="left",
-    )
+    )'''
 
     return ax
 
@@ -737,3 +759,62 @@ def getYlabelBoxplot(variable):
         log.error(message)
         raise ValueError(message)
     return ylabel
+
+
+def addPolygonToPlot(fileToPolygon, ax, color="magenta", label=""):
+    """
+    add a polygon to a plot and its legend
+
+    Parameters
+    --------------
+    fileToPolygon: str
+        path to file
+    ax: plt.axis
+        axis in which polygon is plotted
+    color: str
+        color of polygon
+    label: str
+        label for legend
+
+    Returns
+    ----------
+    ax: plt.axis
+        axis with added polygon
+    """
+
+    poygon = gpd.read_file(fileToPolygon)
+    poygon.plot(ax=ax, edgecolor=color, linewidth=2, facecolor="none", zorder=10)
+    relPatch = Patch(edgecolor=color, facecolor="white", label=label)
+    handles, labels = ax.get_legend_handles_labels()
+    handles.append(relPatch)
+    ax.legend(handles=handles)
+
+    return ax
+
+
+def addReleaseAreaToPlot(ax, pathDict):
+    """
+    if a release area in shp or geojson format is provided, add it to the plot
+
+    Parameters
+    -------------------
+    ax: plt.axis
+        axis in which release area is plotted
+    pathDict: dict
+        contains paths to avalacnhe directory
+
+    Returns
+    ----------
+    ax: plt.axis
+        axis with added release area
+    """
+
+    relDir = pathDict["avalancheDir"] / "Inputs" / "REL"
+    filePath = getRasterFile(relDir, variable="", ext="shp")
+    if filePath == "":
+        filePath = getRasterFile(relDir, variable="", ext="geojson")
+    if filePath != "":
+        ax = addPolygonToPlot(filePath, ax, label="release area")
+    else:
+        log.info("No polygon file for a release area is found.")
+    return ax

@@ -203,6 +203,8 @@ def plotThalweg2D(pathDict, cfg, dataThalweg):
 
 def plotDFAGenerationLocation(pathDict, profile, rasterVariable="fpTravelAngleMax"):
     savePath = pathDict["savePath"]
+    # TODO: putplotLim into cfg
+    plotLim = 50
 
     file = tools.getRasterFile(pathDict["pathToOutput"], variable=rasterVariable)
     rasterDict = rasterUtils.readRaster(file)
@@ -214,9 +216,12 @@ def plotDFAGenerationLocation(pathDict, profile, rasterVariable="fpTravelAngleMa
     fig, ax1 = plt.subplots(figsize=(10, 8), dpi=150)
     ax1 = outCom3Plots.avalancheThalwegPlot(ax1, raster, dem, profile)
     ax1.legend()
+
+    tools.addReleaseAreaToPlot(ax1, pathDict)
+
     # set plot limits depending on thalweg
-    plt.xlim((np.min(profile["x"]) - 100, np.max(profile["x"]) + 100))
-    plt.ylim((np.min(profile["y"]) - 100, np.max(profile["y"]) + 100))
+    plt.xlim((np.min(profile["x"]) - plotLim, np.max(profile["x"]) + plotLim))
+    plt.ylim((np.min(profile["y"]) - 20, np.max(profile["y"]) + 30))
 
     outFileNamePart = tools.getOutFileNamePartly(pathDict["titleVariables"])
     outFileName = f"DFA_thalwegLocation_{outFileNamePart}.png"
