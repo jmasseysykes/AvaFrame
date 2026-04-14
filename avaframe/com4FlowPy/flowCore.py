@@ -640,6 +640,8 @@ def calculation(args):
     colListRelId = []
     rowListRelId = []
     fluxListRelId = []
+    zdeltaListRelId = []
+    travelLengthMaxListRelId = []
     startcell_idx = 0
     startCellIdDict = {}
     timeThalweg = 0.0
@@ -704,11 +706,15 @@ def calculation(args):
             colThalwegLists = []
             rowThalwegLists = []
             fluxThalwegLists = []
+            zdeltaThalwegLists = []
+            travelLengthMaxThalwegLists = []
 
             for gen, cellList in enumerate(genList):
                 colThalwegGen = []
                 rowThalwegGen = []
                 fluxThalwegGen = []
+                zdeltaThalwegGen = []
+                travelLengthMaxThalwegGen = []
                 for idx, cell in enumerate(cellList):
 
                     if relIdBool:
@@ -902,6 +908,8 @@ def calculation(args):
                         colThalwegGen.append(cell.colindex)
                         rowThalwegGen.append(cell.rowindex)
                         fluxThalwegGen.append(cell.flux)
+                        zdeltaThalwegGen.append(cell.z_delta)
+                        travelLengthMaxThalwegGen.append(cell.min_distance)
 
                 if len(childList) > 0:
                     cellList = childList
@@ -912,6 +920,9 @@ def calculation(args):
                         colThalwegLists.append(colThalwegGen)
                         rowThalwegLists.append(rowThalwegGen)
                         fluxThalwegLists.append(fluxThalwegGen)
+                        zdeltaThalwegLists.append(zdeltaThalwegGen)
+                        travelLengthMaxThalwegLists.append(travelLengthMaxThalwegGen)
+
                         # empty last generation in genList to save RAM
                         if gen > 1:
                             genList[gen - 1] = []
@@ -930,6 +941,16 @@ def calculation(args):
                         (fluxThisCell or []) + (fluxBefore or [])
                         for fluxThisCell, fluxBefore in zip_longest(fluxListRelId, fluxThalwegLists)
                     ]
+                    zdeltaListRelId = [
+                        (zdeltaThisCell or []) + (zdeltaBefore or [])
+                        for zdeltaThisCell, zdeltaBefore in zip_longest(zdeltaListRelId, zdeltaThalwegLists)
+                    ]
+                    travelLengthMaxListRelId = [
+                        (travelLengthMaxThisCell or []) + (travelLengthMaxBefore or [])
+                        for travelLengthMaxThisCell, travelLengthMaxBefore in zip_longest(
+                            travelLengthMaxListRelId, travelLengthMaxThalwegLists
+                        )
+                    ]
                 else:
                     # zip the generationLists within one release Id
                     generationListRelId = [
@@ -946,10 +967,16 @@ def calculation(args):
                     # if this was the last startcell, we also want to compute the thalweg!
                     lastStartcell = True
                 if startcellId != relIdArray[nextRowIdx, nextColIdx] or lastStartcell:
-                    # TODO: now, for the path rowIdx and colIdx do not make sense!!
                     log.info(f"Finished computing PRA with ID {startcellId}. Start computing its thalweg!")
                     timeThawlegStart = time.time()
                     if thalwegParameters["thalwegSaveRam"]:
+                        listsRelId = {
+                            "row": rowListRelId,
+                            "col": colListRelId,
+                            "flux": fluxListRelId,
+                            "zdelta": zdeltaListRelId,
+                            "travelLengthMax": travelLengthMaxListRelId,
+                        }
                         path = Path(
                             dem,
                             row_list[startcell_idx],
@@ -958,9 +985,7 @@ def calculation(args):
                             rasterAttributes,
                             countArray,
                             startcellId,
-                            colListRelId,
-                            rowListRelId,
-                            fluxListRelId,
+                            listsRelId,
                             cellList[0],
                         )
                         path.calcAndSaveThalwegData(thalwegParameters)
@@ -968,6 +993,9 @@ def calculation(args):
                         colListRelId = []
                         rowListRelId = []
                         fluxListRelId = []
+                        zdeltaListRelId = []
+                        travelLengthMaxListRelId = []
+                        listsRelId = {}
 
                     else:
                         path = Path(

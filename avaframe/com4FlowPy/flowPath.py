@@ -19,9 +19,7 @@ class Path:
             rasterAttributes,
             countArray,
             relId=None,
-            rowList=None,
-            colList=None,
-            fluxList=None,
+            listsRelId=None,
             exampleCell=None,
     ):
         """initializes a GMF path, that belongs to a startcell
@@ -51,13 +49,15 @@ class Path:
         self.pathRaster = np.where(countArray > 0, countArray, np.nan)
 
         if self.genList is None:
-            self.rowList = rowList
-            self.colList = colList
-            self.fluxList = fluxList
+            self.rowList = listsRelId["row"]
+            self.colList = listsRelId["col"]
+            self.fluxList = listsRelId["flux"]
+            self.zdeltaList = listsRelId["zdelta"]
+            self.travelLengthList = listsRelId["travelLengthMax"]
             self.alpha = exampleCell.alpha
             self.exp = exampleCell.exp
             self.maxZDelta = exampleCell.max_z_delta
-            self.numberGen = len(rowList)
+            self.numberGen = len(self.rowList)
         else:
             self.alpha = genList[0][0].alpha
             self.exp = genList[0][0].exp
@@ -329,7 +329,7 @@ class Path:
         if thalwegParameters["thalwegSaveRam"]:
             # only compute thalweg location for coF
             # TODO: do we only want to compute coF or also coE and coZd?
-            variables = ["x", "y"]
+            variables = ["x", "y", "travelLength", "zdelta"]
             cos = ["cof"]
         else:
             cos = eval(thalwegParameters["thalwegCenterOf"])
@@ -361,13 +361,15 @@ class Path:
         if thalwegParameters["thalwegSaveRam"]:
             _, self.colCoF = self.calcThalwegCenterof(self.rowList, self.fluxList)
             _, self.rowCoF = self.calcThalwegCenterof(self.colList, self.fluxList)
+            _, self.zdeltaCoF = self.calcThalwegCenterof(self.zdeltaList, self.fluxList)
+            _, self.travelLengthCoF = self.calcThalwegCenterof(self.travelLengthList, self.fluxList)
         else:
             self.getCenterofs(variables, centerOfs)
         # empty generation list to safe RAM
         self.genList = []
         for co in centerOfs:
             # convert column and row to coordinates s, y
-            # TODO: when there are more than one tile, think if the other outputs need to be corrected??
+            # TODO: when there is more than one tile, think if the other outputs need to be corrected??
             colCentered = getattr(self, f"col{co}")
             rowCentered = getattr(self, f"row{co}")
             rowLarge, colLarge = self.correctIndicesTile(rowCentered, colCentered)

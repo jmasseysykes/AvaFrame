@@ -139,6 +139,7 @@ def regionalThalweg2DPlotMain(avalanchedir, cfg, simhash=""):
         plotDFAGenerationLocation(pathDict, profileExtended, rasterVariable="fpTravelAngleMax")
 
     tools.plotBoxplot(pathDict, cfg)
+    tools.plotScatterInputEffective(pathDict, cfg)
 
 
 def plotThalweg2D(pathDict, cfg, dataThalweg):
@@ -213,7 +214,7 @@ def plotDFAGenerationLocation(pathDict, profile, rasterVariable="fpTravelAngleMa
 
     dem = gI.readDEM(pathDict["avalancheDir"])
 
-    fig, ax1 = plt.subplots(figsize=(12, 9))  # , dpi=150)
+    fig, ax1 = plt.subplots()  # figsize=(12, 9))  # , dpi=150)
     ax1 = outCom3Plots.avalancheThalwegPlot(ax1, raster, dem, profile)
     ax1.legend()
 

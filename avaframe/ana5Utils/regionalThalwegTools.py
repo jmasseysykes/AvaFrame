@@ -635,6 +635,10 @@ def plotBoxplot(pathDict, cfg, title=""):
         ax2.set_yticks([ysize1Max, ysize2Max, ysize3Max, ysize4Max])
         ax2.set_yticklabels([ysize1Max, ysize2Max, ysize3Max, ysize4Max], fontsize=13)
 
+    if varName == "alphaIn":
+        ax2.set_ylim([19, 36])
+    if varName in ["velocityIn", "velocity"]:
+        ax2.set_ylim([-1, 50])
     plt.ylabel(ylabel, fontsize=13)
 
     if title == "":
@@ -643,7 +647,150 @@ def plotBoxplot(pathDict, cfg, title=""):
     plt.grid(True)
     savePath = pathDict["savePath"]
     simhash = pathDict["titleVariables"]["simHash"]
-    fig.savefig(f"{savePath}/ThalwegStatistic_{simhash}_{varName}{centerOf}.png")
+    fig.savefig(f"{savePath}/ThalwegStatistic_{simhash}_{varName}_{centerOf}.png")
+
+
+def plotScatterInputEffective(pathDict, cfg, title=""):
+    """
+    shows and potentially saves Violinplot and Boxplot
+
+    Parameters:
+    -----------
+    path: str
+        OutputPath of the FlowPy simulation
+    dataNan: np.array
+        data that is analysed and plotted (can contain nans)
+    title: str
+        title for the plot
+    """
+    path = pathDict["pathToOutput"]
+    cfgGen = cfg["GENERAL"]
+    cfgSize = cfg["SIZECLASS"]
+    varName = cfgGen.get("statisticVariable")
+    centerOf = cfgGen.get("centerOfVariable")
+
+    if varName in ["velocity", "velocityIn"]:
+        # dataNanIn = getDataBoxplots(path, "velocityIn", centerOf)
+        # dataNanEff = getDataBoxplots(path, "velocity", centerOf)
+        dataDict = maxParameterOfAllThalwegs(path, ["test"], centerOf)
+        dataNanIn = dataDict["velocityIn"]
+        # dataNanEff = zDelta2velocity(np.array(dataDict["zdelta"]))
+        dataNanEff = dataDict["velocity"]
+
+    else:
+        return
+
+    # dataIn = np.delete(dataNanIn, np.where(np.isnan(dataNanIn)))
+    # dataEff = np.delete(dataNanEff, np.where(np.isnan(dataNanEff)))
+
+    fig, ax2 = plt.subplots()  # figsize = [4,5])
+    # fig.tight_layout()
+    labels = [f" (n = {len(dataNanEff)})"]
+
+    ax2.scatter(dataNanIn, dataNanEff, s=0.4)
+    ax2.plot([0, 15], [0, 15], "--")
+
+    # Color background
+    if varName in ["travelLengthMax", "impressure"]:
+
+        ysize1Max = cfgSize.getint(f"{varName}Size1Max")
+        ysize2Max = cfgSize.getint(f"{varName}Size2Max")
+        ysize3Max = cfgSize.getint(f"{varName}Size3Max")
+        ysize4Max = cfgSize.getint(f"{varName}Size4Max")
+        y_min, y_max = ax2.get_ylim()
+        y_max = np.max([y_max, 1.1 * ysize4Max])
+        ax2.axhspan(0, ysize1Max, facecolor="#" + cfgSize["colorSize1"], alpha=0.2)  # Avalanche size 1
+        ax2.axhspan(
+            ysize1Max,
+            ysize2Max,
+            facecolor="#" + cfgSize["colorSize2"],
+            alpha=0.2,
+        )  # size 2
+        ax2.axhspan(
+            ysize2Max,
+            ysize3Max,
+            facecolor="#" + cfgSize["colorSize3"],
+            alpha=0.2,
+        )  # size 3
+        ax2.axhspan(
+            ysize3Max,
+            ysize4Max,
+            facecolor="#" + cfgSize["colorSize4"],
+            alpha=0.2,
+        )  # size 4
+        ax2.axhspan(ysize4Max, y_max, facecolor="#" + cfgSize["colorSize5"], alpha=0.2)  # size 5
+
+        if varName == "impressure":
+            class_lab = "$C_{ip}$"
+        # elif varName == "path_area":
+        #   class_lab = "$B_{aa}$"
+        elif varName == "travelLengthMax":
+            class_lab = "$E_{rl}$"
+        else:
+            class_lab = ""
+
+        ax2.text(
+            1.5,
+            0 + (ysize1Max * 0.75),
+            f"{class_lab} 1",
+            ha="center",
+            va="center",
+            color="#008B8B",
+            fontsize=13,
+        )
+        ax2.text(
+            1.5,
+            ysize1Max + (ysize2Max - ysize1Max) / 2,
+            f"{class_lab} 2",
+            ha="center",
+            va="center",
+            color="#4682B4",
+            fontsize=13,
+        )
+        ax2.text(
+            1.5,
+            ysize2Max + (ysize3Max - ysize2Max) / 2,
+            f"{class_lab} 3",
+            ha="center",
+            va="center",
+            color="#6495ED",
+            fontsize=13,
+        )
+        ax2.text(
+            1.5,
+            ysize3Max + (ysize4Max - ysize3Max) / 2,
+            f"{class_lab} 4",
+            ha="center",
+            va="center",
+            color="#CD5C5C",
+            fontsize=13,
+        )
+        ax2.text(
+            1.5,
+            ysize4Max + (y_max - ysize4Max) / 2,
+            f"{class_lab} 5",
+            ha="center",
+            va="center",
+            color="#B22222",
+            fontsize=13,
+        )
+        ax2.set_yticks([ysize1Max, ysize2Max, ysize3Max, ysize4Max])
+        ax2.set_yticklabels([ysize1Max, ysize2Max, ysize3Max, ysize4Max], fontsize=13)
+
+    if varName == "alphaIn":
+        ax2.set_ylim([19, 36])
+    if varName in ["velocityIn", "velocity"]:
+        ax2.set_ylim([-1, 50])
+        plt.ylabel("effective max. velocity [m/s]", fontsize=13)
+        plt.xlabel("input (model parameter) max. velocity [m/s]", fontsize=13)
+
+    if title == "":
+        title = f"thalwege {centerOf}"
+    plt.title(title)
+    plt.grid(True)
+    savePath = pathDict["savePath"]
+    simhash = pathDict["titleVariables"]["simHash"]
+    fig.savefig(f"{savePath}/ThalwegScatter_{simhash}_{varName}_{centerOf}.png")
 
 
 def getDataBoxplots(path, variable, centerOf):
@@ -710,6 +857,8 @@ def maxParameterOfAllThalwegs(path, variableList, centerOf):
     variableValues = {}
     for variable in variableList:
         variableValues[variable] = []
+        variableValues["velocity"] = []
+        variableValues["velocityIn"] = []
         for filename in os.listdir(path / "thalwegData"):
             # Check if the filename starts with 'thalweg'
             if filename.startswith(f"thalwegData_{centerOf}"):
@@ -719,16 +868,38 @@ def maxParameterOfAllThalwegs(path, variableList, centerOf):
                 x = data["x"]
                 y = data["y"]
 
-                outputRasterFile = getRasterFile(path, variable=variable)
-                valuesThalweg = getThalwegValuesFromRaster(outputRasterFile, x, y)
-                if len(valuesThalweg) > 0:
-                    valueMax = np.nanmax(valuesThalweg)
-                else:
-                    valueMax = np.nan
-                variableValues[variable].append(valueMax)
+                if variable == "alphaIn":
+                    alpha = data["alpha"]
+                    variableValues[variable].append(alpha)
+                elif variable == "velocityIn":
+                    zDelta = data["zDeltaMax"]
+                    velocity = zDelta2velocity(zDelta)
+                    variableValues[variable].append(velocity)
+                elif variable == "test":
+                    zDelta = data["zDeltaMax"]
+                    velocity = zDelta2velocity(zDelta)
+                    variableValues["velocityIn"].append(velocity)
 
-                # for plotting averaged values:
-                # variableValues[variable].append(np.nanmax(data[variable]))
+                    outputRasterFile = getRasterFile(path, variable="zdelta")
+                    valuesThalweg = getThalwegValuesFromRaster(outputRasterFile, x, y)
+                    valuesThalweg = zDelta2velocity(np.array(valuesThalweg))
+                    if len(valuesThalweg) > 0:
+                        valueMax = np.nanmax(valuesThalweg)
+                    else:
+                        valueMax = np.nan
+                    variableValues["velocity"].append(valueMax)
+
+                else:
+                    outputRasterFile = getRasterFile(path, variable=variable)
+                    valuesThalweg = getThalwegValuesFromRaster(outputRasterFile, x, y)
+                    if len(valuesThalweg) > 0:
+                        valueMax = np.nanmax(valuesThalweg)
+                    else:
+                        valueMax = np.nan
+                    variableValues[variable].append(valueMax)
+
+                    # for plotting averaged values:
+                    # variableValues[variable].append(np.nanmax(data[variable]))
     return variableValues
 
 
@@ -757,6 +928,10 @@ def getYlabelBoxplot(variable):
         ylabel = "max. zDelta [m]"
     elif variable == "flux":
         ylabel = "flux"
+    elif variable == "alphaIn":
+        ylabel = "input alpha angle [°]"
+    elif variable == "velocityIn":
+        ylabel = "input max. velocity limit [m/s]"
     else:
         message = f"{variable} is not a valid thalweg variable for the statistic boxplot"
         log.error(message)
