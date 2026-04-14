@@ -10,7 +10,20 @@ log = logging.getLogger(__name__)
 class Path:
     """Class contains a path, containing one startcell and corresponding child cells"""
 
-    def __init__(self, dem, startcellRow, startcellCol, genList, rasterAttributes, countArray, relId=None):
+    def __init__(
+            self,
+            dem,
+            startcellRow,
+            startcellCol,
+            genList,
+            rasterAttributes,
+            countArray,
+            relId=None,
+            rowList=None,
+            colList=None,
+            fluxList=None,
+            exampleCell=None,
+    ):
         """initializes a GMF path, that belongs to a startcell
 
         Parameters
@@ -31,15 +44,25 @@ class Path:
         self.nrows = rasterAttributes["nrows"]
         self.rasterAttributes = rasterAttributes
 
-        self.alpha = genList[0][0].alpha
-        self.exp = genList[0][0].exp
-        self.maxZDelta = genList[0][0].max_z_delta
         self.genList = genList
         self.startcellRow = startcellRow
         self.startcellCol = startcellCol
-        self.numberGen = len(genList)
         self.relId = int(relId)
         self.pathRaster = np.where(countArray > 0, countArray, np.nan)
+
+        if self.genList is None:
+            self.rowList = rowList
+            self.colList = colList
+            self.fluxList = fluxList
+            self.alpha = exampleCell.alpha
+            self.exp = exampleCell.exp
+            self.maxZDelta = exampleCell.max_z_delta
+            self.numberGen = len(rowList)
+        else:
+            self.alpha = genList[0][0].alpha
+            self.exp = genList[0][0].exp
+            self.maxZDelta = genList[0][0].max_z_delta
+            self.numberGen = len(genList)
 
         self.zDeltaGeneration = []
         self.fluxGeneration = []
@@ -151,9 +174,10 @@ class Path:
         coVar: numpy array
             centered variable (per generation)
         """
-        coVar = np.zeros(len(self.genList))
-        variableSum = np.zeros(len(self.genList))
-        for gen in range(0, len(self.genList)):
+
+        coVar = np.zeros(self.numberGen)
+        variableSum = np.zeros(self.numberGen)
+        for gen in range(0, self.numberGen):
             var = np.array(variable[gen])
             co = np.array(variableCo[gen])
             variableSum[gen] = np.sum(var)
@@ -215,10 +239,6 @@ class Path:
                 self.zDeltaGenList = self.getGenerationList("zDelta")
                 sumZd, coZd = self.calcThalwegCenterof(values, self.zDeltaGenList)
                 setattr(self, f"{varName}CoZd", coZd[:-1])
-        # for saving RAM, empty the lists
-        self.energyGenList = []
-        self.fluxGenList = []
-        self.zDeltaGenList = []
 
     def correctIndicesTile(self, row, col):
         """
@@ -306,8 +326,14 @@ class Path:
             contains information to calculate and save the thalweg data (from .ini file)
         """
         saveDir = thalwegParameters["thalwegDir"]
-        cos = eval(thalwegParameters["thalwegCenterOf"])
-        variables = eval(thalwegParameters["thalwegVariables"])
+        if thalwegParameters["thalwegSaveRam"]:
+            # only compute thalweg location for coF
+            # TODO: do we only want to compute coF or also coE and coZd?
+            variables = ["x", "y"]
+            cos = ["cof"]
+        else:
+            cos = eval(thalwegParameters["thalwegCenterOf"])
+            variables = eval(thalwegParameters["thalwegVariables"])
         centerOfs = []
 
         for co in cos:
@@ -332,7 +358,13 @@ class Path:
             variables.append("col")
             variables.append("row")
 
-        self.getCenterofs(variables, centerOfs)
+        if thalwegParameters["thalwegSaveRam"]:
+            _, self.colCoF = self.calcThalwegCenterof(self.rowList, self.fluxList)
+            _, self.rowCoF = self.calcThalwegCenterof(self.colList, self.fluxList)
+        else:
+            self.getCenterofs(variables, centerOfs)
+        # empty generation list to safe RAM
+        self.genList = []
         for co in centerOfs:
             # convert column and row to coordinates s, y
             # TODO: when there are more than one tile, think if the other outputs need to be corrected??
@@ -347,3 +379,4 @@ class Path:
             setattr(self, f"row{co}", rowLarge)
             # update y coordinate
         self.saveDict(saveDir, centerOfs, variables)
+        log.debug(f"thalweg data saved in {saveDir}")

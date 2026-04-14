@@ -20,6 +20,7 @@ from multiprocessing import Pool
 
 from avaframe.com4FlowPy.flowClass import Cell
 from avaframe.com4FlowPy.flowPath import Path
+from avaframe.com4FlowPy import flowPath
 
 
 def get_start_idx(dem, release, relIdArray=None, calcThalweg=False):
@@ -208,6 +209,7 @@ def run(optTuple):
             "thalwegCenterOf": optTuple[2]["thalwegCenterOf"],
             "thalwegVariables": optTuple[2]["thalwegVariables"],
             "calcRelID": optTuple[2]["thalwegReleaseArea"],
+            "thalwegSaveRam": optTuple[2]["thalwegSaveRam"],
         }
     else:
         thalwegParameters = None
@@ -635,6 +637,9 @@ def calculation(args):
     row_list, col_list = get_start_idx(dem, release, relIdArray, calcThalweg)
 
     generationListRelId = []
+    colListRelId = []
+    rowListRelId = []
+    fluxListRelId = []
     startcell_idx = 0
     startCellIdDict = {}
     timeThalweg = 0.0
@@ -696,8 +701,14 @@ def calculation(args):
             cellList = [startcell]  # list of parents for current iteration
             genList = [cellList]  # list of all cells (which are calculated), organised in generations
             childList = []  # list of childs of the current iteration
+            colThalwegLists = []
+            rowThalwegLists = []
+            fluxThalwegLists = []
 
             for gen, cellList in enumerate(genList):
+                colThalwegGen = []
+                rowThalwegGen = []
+                fluxThalwegGen = []
                 for idx, cell in enumerate(cellList):
 
                     if relIdBool:
@@ -887,18 +898,44 @@ def calculation(args):
                             forestIntArray[cell.rowindex, cell.colindex] = max(
                                 forestIntArray[cell.rowindex, cell.colindex], cell.forestIntCount
                             )
+                    if thalwegParameters["thalwegSaveRam"]:
+                        colThalwegGen.append(cell.colindex)
+                        rowThalwegGen.append(cell.rowindex)
+                        fluxThalwegGen.append(cell.flux)
 
                 if len(childList) > 0:
                     cellList = childList
                     genList.append(cellList)
                     childList = []
 
+                    if thalwegParameters["thalwegSaveRam"]:
+                        colThalwegLists.append(colThalwegGen)
+                        rowThalwegLists.append(rowThalwegGen)
+                        fluxThalwegLists.append(fluxThalwegGen)
+                        # empty last generation in genList to save RAM
+                        if gen > 1:
+                            genList[gen - 1] = []
+
             if calcThalweg and thalwegParameters["calcRelID"]:
-                # zip the generationLists within one release Id
-                generationListRelId = [
-                    (generationThisCell or []) + (generationBefore or [])
-                    for generationThisCell, generationBefore in zip_longest(generationListRelId, genList)
-                ]
+                if thalwegParameters["thalwegSaveRam"]:
+                    colListRelId = [
+                        (colThisCell or []) + (colBefore or [])
+                        for colThisCell, colBefore in zip_longest(colListRelId, colThalwegLists)
+                    ]
+                    rowListRelId = [
+                        (rowThisCell or []) + (rowBefore or [])
+                        for rowThisCell, rowBefore in zip_longest(rowListRelId, rowThalwegLists)
+                    ]
+                    fluxListRelId = [
+                        (fluxThisCell or []) + (fluxBefore or [])
+                        for fluxThisCell, fluxBefore in zip_longest(fluxListRelId, fluxThalwegLists)
+                    ]
+                else:
+                    # zip the generationLists within one release Id
+                    generationListRelId = [
+                        (generationThisCell or []) + (generationBefore or [])
+                        for generationThisCell, generationBefore in zip_longest(generationListRelId, genList)
+                    ]
 
                 # check if the next startcell has the same startcellId
                 if startcell_idx + 1 < len(row_list):
@@ -912,21 +949,43 @@ def calculation(args):
                     # TODO: now, for the path rowIdx and colIdx do not make sense!!
                     log.info(f"Finished computing PRA with ID {startcellId}. Start computing its thalweg!")
                     timeThawlegStart = time.time()
-                    path = Path(
-                        dem,
-                        row_list[startcell_idx],
-                        col_list[startcell_idx],
-                        generationListRelId,
-                        rasterAttributes,
-                        countArray,
-                        startcellId,
-                    )
-                    path.calcAndSaveThalwegData(thalwegParameters)
-                    timeThawlegEnd = time.time()
-                    timeThalweg += timeThawlegEnd - timeThawlegStart
-                    generationListRelId = []
+                    if thalwegParameters["thalwegSaveRam"]:
+                        path = Path(
+                            dem,
+                            row_list[startcell_idx],
+                            col_list[startcell_idx],
+                            None,
+                            rasterAttributes,
+                            countArray,
+                            startcellId,
+                            colListRelId,
+                            rowListRelId,
+                            fluxListRelId,
+                            cellList[0],
+                        )
+                        path.calcAndSaveThalwegData(thalwegParameters)
+                        del path
+                        colListRelId = []
+                        rowListRelId = []
+                        fluxListRelId = []
+
+                    else:
+                        path = Path(
+                            dem,
+                            row_list[startcell_idx],
+                            col_list[startcell_idx],
+                            generationListRelId,
+                            rasterAttributes,
+                            countArray,
+                            startcellId,
+                        )
+                        path.calcAndSaveThalwegData(thalwegParameters)
+                        del path
+                        generationListRelId = []
+                    timeThalwegEnd = time.time()
+                    timeThalweg += timeThalwegEnd - timeThawlegStart
                     log.info(
-                        f"Finished computing thalweg of PRA with ID {startcellId}, it took {np.round(timeThawlegEnd - timeThawlegStart, 1)} s."
+                        f"Finished computing thalweg of PRA with ID {startcellId}, it took {np.round(timeThalwegEnd - timeThawlegStart, 1)} s."
                     )
 
             elif calcThalweg:
@@ -1130,7 +1189,6 @@ def calculation(args):
         zDeltaSumArray += zDeltaPathArray
 
     gc.collect()
-    log.info(f"Thalweg computation took {np.round(timeThawlegEnd - timeThawlegStart, 1)} s.")
     return (
         zDeltaArray,
         fluxArray,

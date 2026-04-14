@@ -109,7 +109,7 @@ def readThalwegData(path, titleDict):
     if startRow != "":
         filePath = pathlib.Path(f"{path}/thalwegData_{centerOf}_{startRow}_{startCol}.pickle")
     else:
-        filePath = pathlib.Path(f"{path}/thalwegData_{centerOf}_{relId}.pickle")
+        filePath = pathlib.Path(path) / (f"thalwegData_{centerOf}_{relId}.pickle")
     if filePath.is_file():
         data = np.load(filePath, allow_pickle="TRUE")
     else:
@@ -721,7 +721,10 @@ def maxParameterOfAllThalwegs(path, variableList, centerOf):
 
                 outputRasterFile = getRasterFile(path, variable=variable)
                 valuesThalweg = getThalwegValuesFromRaster(outputRasterFile, x, y)
-                valueMax = np.nanmax(valuesThalweg)
+                if len(valuesThalweg) > 0:
+                    valueMax = np.nanmax(valuesThalweg)
+                else:
+                    valueMax = np.nan
                 variableValues[variable].append(valueMax)
 
                 # for plotting averaged values:

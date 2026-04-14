@@ -81,8 +81,10 @@ def com4FlowPyMain(cfgPath, cfgSetup):
     modelParameters["calcThalweg"] = cfgSetup.getboolean("calcThalweg")
     if modelParameters["calcThalweg"]:
         modelParameters["thalwegReleaseArea"] = cfgSetup.getboolean("thalwegReleaseArea")
+        modelParameters["thalwegSaveRam"] = cfgSetup.getboolean("thalwegSaveRam")
     else:
         modelParameters["thalwegReleaseArea"] = False
+        modelParameters["thalwegSaveRam"] = False
     modelParameters["thalwegCenterOf"] = cfgSetup.get("thalwegCenterOf")
     modelParameters["thalwegVariables"] = cfgSetup.get("thalwegVariables")
 

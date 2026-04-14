@@ -67,7 +67,7 @@ def regionalThalweg2DPlotMain(avalanchedir, cfg, simhash=""):
         startCol = np.int16(startCol)
         startRow = np.int16(startRow)
     elif relId != "":
-        relId = np.int16(relId)
+        relId = np.int32(relId)
     else:
         plotAllThalwegs = True
 
@@ -213,7 +213,7 @@ def plotDFAGenerationLocation(pathDict, profile, rasterVariable="fpTravelAngleMa
 
     dem = gI.readDEM(pathDict["avalancheDir"])
 
-    fig, ax1 = plt.subplots(figsize=(10, 8), dpi=150)
+    fig, ax1 = plt.subplots(figsize=(12, 9))  # , dpi=150)
     ax1 = outCom3Plots.avalancheThalwegPlot(ax1, raster, dem, profile)
     ax1.legend()
 
