@@ -359,8 +359,8 @@ class Path:
             variables.append("row")
 
         if thalwegParameters["thalwegSaveRam"]:
-            _, self.colCoF = self.calcThalwegCenterof(self.rowList, self.fluxList)
-            _, self.rowCoF = self.calcThalwegCenterof(self.colList, self.fluxList)
+            _, self.colCoF = self.calcThalwegCenterof(self.colList, self.fluxList)
+            _, self.rowCoF = self.calcThalwegCenterof(self.rowList, self.fluxList)
             _, self.zdeltaCoF = self.calcThalwegCenterof(self.zdeltaList, self.fluxList)
             _, self.travelLengthCoF = self.calcThalwegCenterof(self.travelLengthList, self.fluxList)
         else:
