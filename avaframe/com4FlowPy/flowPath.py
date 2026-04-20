@@ -11,16 +11,16 @@ class Path:
     """Class contains a path, containing one startcell and corresponding child cells"""
 
     def __init__(
-            self,
-            dem,
-            startcellRow,
-            startcellCol,
-            genList,
-            rasterAttributes,
-            countArray,
-            relId=None,
-            listsRelId=None,
-            exampleCell=None,
+        self,
+        dem,
+        startcellRow,
+        startcellCol,
+        genList,
+        rasterAttributes,
+        countArray,
+        relId=None,
+        listsRelId=None,
+        exampleCell=None,
     ):
         """initializes a GMF path, that belongs to a startcell
 
