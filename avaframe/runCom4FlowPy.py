@@ -318,9 +318,14 @@ def readFlowPyinputs(avalancheDir, cfgFlowPy, log):
     cfgPath["forestPath"] = forestPath
 
     # read release ID raster
-    if "relIdPolygon" in cfgFlowPy["PATHS"]["outputFiles"].split("|") or "relIdCount" in cfgFlowPy["PATHS"][
-        "outputFiles"
-    ].split("|"):
+    if (
+        "relIdPolygon" in cfgFlowPy["PATHS"]["outputFiles"].split("|")
+        or "relIdCount" in cfgFlowPy["PATHS"]["outputFiles"].split("|")
+        or (
+            cfgFlowPy.getboolean("GENERAL", "thalwegReleaseArea")
+            and cfgFlowPy.getboolean("GENERAL", "calcThalweg")
+        )
+    ):
         relIdPath, available, _ = gI.getAndCheckInputFiles(inputDir, "RELID", "release ID", fileExt="raster")
         if available == "No":
             message = f"There is no release id file in supported format provided in {avalancheDir}/RELID"
