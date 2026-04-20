@@ -35,13 +35,17 @@ def preparePathGeneralMain(profile, cfgDFAPath, dem):
     profileExtended: dict
         x, y, s, z of extended and resampled path
     """
-    x = profile["x"]
-    y = profile["y"]
     # get profile with normalized x and y coordinates and z and s values
-    profileAveraged = xyToProfile(x, y, dem)
+    profileAveraged = updateSZProfile(profile, dem)
     profileExtended = profileAveraged.copy()
+
+    # skip profile that only contains one point
+    if len(profile["x"]) <= 2:
+        return profileAveraged, profileExtended
+
     # if extTopOption == 2, particlesIni are not used!!
     profileExtended = pathExtension(profileExtended, dem, cfgDFAPath)
+    profileExtended = updateSZProfile(profileExtended, dem)
     # resample profile/ path and save in an extra dictionary
     profileExtended = DFAPathGeneration.resamplePath(cfgDFAPath["PATH"], dem, profileExtended)
     # profileExtended = replaceResampledProfileCore(profileExtended, profileResample)
@@ -115,7 +119,7 @@ def pathExtension(profile, demDict, cfgPathGen):
 
     cfgPathGen["PATH"]["extTopOption"] = "2"
     profile["indStartMassAverage"] = 1
-    profile["indEndMassAverage"] = np.size(profile["x"]) - 1
+    profile["indEndMassAverage"] = np.size(profile["x"]) - 2
 
     # TODO: also allow extTopOption 0 and 1 ?
 
@@ -134,20 +138,21 @@ def pathExtension(profile, demDict, cfgPathGen):
     return profile
 
 
-def xyToProfile(x, y, dem):
+def updateSZProfile(profile, dem):
     """
     for given coordinates (of the talweg) read z values
     from DEM and compute distance between coordinates
 
     Parameters
     ------------
-    x: np.array
-        x coordinates
-    y: np.array
-        y coordinates
+    profile: dict
+        contains at least x and y coordinates
     dem: dict
         contains dem data
     """
+    x = profile["x"]
+    y = profile["y"]
+
     demHeader = dem["header"]
 
     z, _ = gT.projectOnGrid(
@@ -158,7 +163,8 @@ def xyToProfile(x, y, dem):
         xllc=demHeader["xllcenter"],
         yllc=demHeader["yllcenter"],
     )
-    s = np.append(np.array([0]), gT.computeLengthOfLine2D(x, y))
-    profile = {"x": x, "y": y, "z": z, "s": s}
+    s = np.append([0], gT.computeLengthOfLine2D(x, y))
+    profile["z"] = z
+    profile["s"] = s
 
     return profile

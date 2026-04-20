@@ -119,14 +119,16 @@ def readThalwegData(path, titleDict):
     return data
 
 
-def getOutFileNamePartly(titleDict):
+def getOutFileNamePartly(titleDict, allThalwegs=False):
     """
     make name for outputfile
 
     Paramaters
     -------------
     titleDict: dict
-    contains parameters of avalanche path
+        contains parameters of avalanche path
+    allThalwegs: bool
+        if True, no specification for one path is used
 
     Returns
     -------------
@@ -139,7 +141,9 @@ def getOutFileNamePartly(titleDict):
     relId = titleDict["relId"]
     simhash = titleDict["simHash"]
 
-    if relId != "":
+    if allThalwegs:
+        outFileNamePart = f"{simhash}_{centerOf}"
+    elif relId != "":
         outFileNamePart = f"{simhash}_{centerOf}_{relId}"
     else:
         outFileNamePart = f"{simhash}_{centerOf}_{startRow}_{startCol}"
@@ -147,7 +151,7 @@ def getOutFileNamePartly(titleDict):
     return outFileNamePart
 
 
-def plotField(ax, fig, pathDict, variable, thalwegPra=False):
+def plotField(ax, fig, pathDict, variable):
     """plots hillshade of the DEM and the output raster of the simulation zoomed in to the simulation extent
 
     Parameters:
@@ -175,15 +179,19 @@ def plotField(ax, fig, pathDict, variable, thalwegPra=False):
         "fpTravelAngle": "max. travel angle [°]",
         "travelLength": "max. travel length [m]",
         "velocityMax": "max. velocity [m/s]",
+        "": "",
     }
     if variable == "velocityMax":
         variableOut = "zdelta"
     else:
         variableOut = variable
-
-    file = getRasterFile(pathDict["pathToOutput"], variable=variableOut)
-    rasterDict = rasterUtils.readRaster(file)
-    raster = rasterDict["rasterData"]
+    if variable == "":
+        raster = np.zeros_like(dem)
+        raster[:] = np.nan
+    else:
+        file = getRasterFile(pathDict["pathToOutput"], variable=variableOut)
+        rasterDict = rasterUtils.readRaster(file)
+        raster = rasterDict["rasterData"]
     if variable == "velocityMax":
         raster = zDelta2velocity(raster)
 
@@ -238,32 +246,18 @@ def plotField(ax, fig, pathDict, variable, thalwegPra=False):
     )  # Define boundaries
     norm = BoundaryNorm(bounds, ncolors=cmapS.N, clip=True)  # Create a norm based on the boundaries
 
-    f = ax.imshow(
-        dataConstrained,
-        cmap=cmapS,
-        norm=norm,
-        extent=extentCellCorners,
-        origin="lower",
-        aspect="equal",
-        zorder=4,
-        alpha=0.7,
-    )
-    fig.colorbar(f, ax=ax, label=clabel[variable])
-    """
-    if thalwegPra:
-        cmapPra = ListedColormap(["magenta"])
-        cmapPra.set_bad(color="none")
-        # normPra = BoundaryNorm([0.5, 1.5], cmapPra.N)
-        ax.imshow(
-            praConstrained,
-            cmap=cmapPra,
+    if variable != "":
+        f = ax.imshow(
+            dataConstrained,
+            cmap=cmapS,
+            norm=norm,
             extent=extentCellCorners,
             origin="lower",
             aspect="equal",
-            zorder=3,
+            zorder=4,
             alpha=0.5,
-            interpolation="none",
-        )"""
+        )
+        fig.colorbar(f, ax=ax, label=clabel[variable])
 
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
@@ -271,7 +265,7 @@ def plotField(ax, fig, pathDict, variable, thalwegPra=False):
     return ax
 
 
-def makeFieldPlot(ax, fig, pathDict, variable, xThalweg, yThalweg, dataThalweg, thalwegPra=False):
+def makeFieldPlot(ax, fig, cfg, pathDict, xThalweg, yThalweg, dataThalweg):
     """make a raster plot for FlowPy output
 
     Parameters
@@ -296,29 +290,26 @@ def makeFieldPlot(ax, fig, pathDict, variable, xThalweg, yThalweg, dataThalweg, 
     Returns
     -----------
     fig: matplotlib figure
-        Figure containg the plot
+        Figure containing the plot
     ax: matplotlib axis
-        Axis containg the plot
+        Axis containing the plot
     """
     colorThalweg = "m"
+    variable = cfg["GENERAL"].get("plotVariable")
+    thalwegPra = cfg["GENERAL"].getboolean("thalwegPra")
     centerOf = pathDict["titleVariables"]["centerOf"]
-    ax = plotField(ax, fig, pathDict, variable, thalwegPra=thalwegPra)
+    colorPra = cfg["GENERAL"].get("colorPra")
+
+    ax = plotField(ax, fig, pathDict, variable)
     # ax.scatter(xThalweg, yThalweg, c="r", s=0.3, zorder=5, label=f"thalweg {centerOf}")
     # ax.scatter(xThalweg[0], yThalweg[0], c="b", s=2.0, zorder=6, label="startcell")
     for i, (x, y) in enumerate(zip(xThalweg, yThalweg)):
-        ax.plot(x, y, "-", c=colorThalweg, zorder=7, label=f"thalweg {centerOf}" if i == 0 else None)
-        ax.plot(dataThalweg["x"], dataThalweg["y"], "-", c=colorThalweg, zorder=8)
+        # all thalwegs are only plotted when in cfg: relId is empty
+        ax.plot(x, y, "-", c="k", linewidth=1, zorder=5, label=f"thalweg {centerOf}" if i == 0 else None)
+    ax.plot(dataThalweg["x"], dataThalweg["y"], "-", c=colorThalweg, zorder=6)
     ax.legend()
-    ax = addReleaseAreaToPlot(ax, pathDict)
-    """
     if thalwegPra:
-        # add PRA path to existing legend
-        handles, labels = ax.get_legend_handles_labels()
-        praPath = Patch(facecolor="magenta", edgecolor="magenta", label="PRA", alpha=0.7)
-        handles.append(praPath)
-        labels.append(praPath.get_label())
-        ax.legend(handles=handles, labels=labels)
-    """
+        ax = addReleaseAreaToPlot(ax, pathDict, colorPra=f"#{colorPra}")
     return fig, ax
 
 
@@ -388,7 +379,7 @@ def makeThalwegPlot(ax, dataThalweg, pathDict):
     z_max = z[zdelta == max(zdelta)]
     zdelta_max = zdelta[zdelta == max(zdelta)]
 
-    # calculate tatsaechlicher runout angle
+    # calculate effective runout angle
     angle_rad = np.arctan((max(z) - min(z)) / (max(s) - min(s)))
     angle_degrees = np.rad2deg(angle_rad)
 
@@ -533,6 +524,7 @@ def plotBoxplot(pathDict, cfg, title=""):
     cfgSize = cfg["SIZECLASS"]
     varName = cfgGen.get("statisticVariable")
     centerOf = cfgGen.get("centerOfVariable")
+    varLabel = None
     ylabel = getYlabelBoxplot(varName)
 
     dataNan = getDataBoxplots(path, varName, centerOf)
@@ -549,12 +541,16 @@ def plotBoxplot(pathDict, cfg, title=""):
     ax2.set_xlim(0.25, len(labels) + 0.75)
 
     # Color background
-    if varName in ["travelLengthMax", "impressure"]:
-
-        ysize1Max = cfgSize.getint(f"{varName}Size1Max")
-        ysize2Max = cfgSize.getint(f"{varName}Size2Max")
-        ysize3Max = cfgSize.getint(f"{varName}Size3Max")
-        ysize4Max = cfgSize.getint(f"{varName}Size4Max")
+    if "travelLength" in varName:
+        varLabel = "travelLength"
+    if "impressure" in varName:
+        varLabel = "impressure"
+    if varLabel is not None:
+        ysize1Max = cfgSize.getint(f"{varLabel}Size1Max")
+        ysize2Max = cfgSize.getint(f"{varLabel}Size2Max")
+        ysize3Max = cfgSize.getint(f"{varLabel}Size3Max")
+        ysize4Max = cfgSize.getint(f"{varLabel}Size4Max")
+        print(ysize4Max)
         y_min, y_max = ax2.get_ylim()
         y_max = np.max([y_max, 1.1 * ysize4Max])
         ax2.axhspan(0, ysize1Max, facecolor="#" + cfgSize["colorSize1"], alpha=0.2)  # Avalanche size 1
@@ -578,11 +574,11 @@ def plotBoxplot(pathDict, cfg, title=""):
         )  # size 4
         ax2.axhspan(ysize4Max, y_max, facecolor="#" + cfgSize["colorSize5"], alpha=0.2)  # size 5
 
-        if varName == "impressure":
+        if "impressure" in varName:
             class_lab = "$C_{ip}$"
         # elif varName == "path_area":
         #   class_lab = "$B_{aa}$"
-        elif varName == "travelLengthMax":
+        elif "travelLengthMax" in varName:
             class_lab = "$E_{rl}$"
         else:
             class_lab = ""
@@ -647,7 +643,9 @@ def plotBoxplot(pathDict, cfg, title=""):
     plt.grid(True)
     savePath = pathDict["savePath"]
     simhash = pathDict["titleVariables"]["simHash"]
-    fig.savefig(f"{savePath}/ThalwegStatistic_{simhash}_{varName}_{centerOf}.png")
+    filename = f"ThalwegStatistic_{simhash}_{varName}_{centerOf}.png"
+    fig.savefig(savePath / filename)
+    log.info(f"Saved boxplot path as {savePath / filename}")
 
 
 def plotScatterInputEffective(pathDict, cfg, title=""):
@@ -669,7 +667,7 @@ def plotScatterInputEffective(pathDict, cfg, title=""):
     varName = cfgGen.get("statisticVariable")
     centerOf = cfgGen.get("centerOfVariable")
 
-    if varName in ["velocity", "velocityIn"]:
+    if varName in ["velocity", "velocityMaxIn", "velocityAveraged"]:
         # dataNanIn = getDataBoxplots(path, "velocityIn", centerOf)
         # dataNanEff = getDataBoxplots(path, "velocity", centerOf)
         dataDict = maxParameterOfAllThalwegs(path, ["test"], centerOf)
@@ -680,15 +678,14 @@ def plotScatterInputEffective(pathDict, cfg, title=""):
     else:
         return
 
-    # dataIn = np.delete(dataNanIn, np.where(np.isnan(dataNanIn)))
-    # dataEff = np.delete(dataNanEff, np.where(np.isnan(dataNanEff)))
-
     fig, ax2 = plt.subplots()  # figsize = [4,5])
     # fig.tight_layout()
     labels = [f" (n = {len(dataNanEff)})"]
 
     ax2.scatter(dataNanIn, dataNanEff, s=0.4)
-    ax2.plot([0, 15], [0, 15], "--")
+    maxlim = np.nanmax([dataNanIn, dataNanEff])
+
+    ax2.plot([0, maxlim + 5], [0, maxlim + 5], c="k", linestyle="--")
 
     # Color background
     if varName in ["travelLengthMax", "impressure"]:
@@ -779,8 +776,8 @@ def plotScatterInputEffective(pathDict, cfg, title=""):
 
     if varName == "alphaIn":
         ax2.set_ylim([19, 36])
-    if varName in ["velocityIn", "velocity"]:
-        ax2.set_ylim([-1, 50])
+    if varName in ["velocityMaxIn", "velocity", "velocityAveraged"]:
+        ax2.set_ylim([-1, 60])
         plt.ylabel("effective max. velocity [m/s]", fontsize=13)
         plt.xlabel("input (model parameter) max. velocity [m/s]", fontsize=13)
 
@@ -790,7 +787,9 @@ def plotScatterInputEffective(pathDict, cfg, title=""):
     plt.grid(True)
     savePath = pathDict["savePath"]
     simhash = pathDict["titleVariables"]["simHash"]
-    fig.savefig(f"{savePath}/ThalwegScatter_{simhash}_{varName}_{centerOf}.png")
+    filename = f"ThalwegScatter_{simhash}_{varName}_{centerOf}.png"
+    fig.savefig(savePath / filename)
+    log.info(f"Saved boxplot path as {savePath / filename}")
 
 
 def getDataBoxplots(path, variable, centerOf):
@@ -812,22 +811,22 @@ def getDataBoxplots(path, variable, centerOf):
 
     data = ""
 
-    if variable == "velocity":
+    if "velocity" in variable:
         varName = "velocity"
-        variable = "zdelta"
+        variable = variable.replace("velocity", "zdelta")
 
-    elif variable == "impressure":
+    elif "impressure" in variable:
         varName = "impressure"
-        variable = f"zdelta"
+        variable = variable.replace("impressure", "zdelta")
     else:
         varName = f"{variable}"
 
     dataDict = maxParameterOfAllThalwegs(path, variable, centerOf)
     data = np.array(dataDict[variable])
-    if varName == "velocity":
+    if "velocity" in varName:
         data = zDelta2velocity(data)
 
-    if varName == "impressure":
+    if "impressure" in varName:
         velo = zDelta2velocity(data)
 
         rho = 200  # km m-3
@@ -871,24 +870,27 @@ def maxParameterOfAllThalwegs(path, variableList, centerOf):
                 if variable == "alphaIn":
                     alpha = data["alpha"]
                     variableValues[variable].append(alpha)
-                elif variable == "velocityIn":
+                elif variable == "zdeltaMaxIn":
                     zDelta = data["zDeltaMax"]
-                    velocity = zDelta2velocity(zDelta)
-                    variableValues[variable].append(velocity)
+                    variableValues[variable].append(zDelta)
+                elif "Averaged" in variable:
+
+                    values = data[variable.replace("Averaged", "")]
+                    if len(values) > 0:
+                        variableValues[variable].append(np.nanmax(values))
+                    else:
+                        variableValues[variable].append(np.nan)
                 elif variable == "test":
                     zDelta = data["zDeltaMax"]
                     velocity = zDelta2velocity(zDelta)
                     variableValues["velocityIn"].append(velocity)
 
-                    outputRasterFile = getRasterFile(path, variable="zdelta")
-                    valuesThalweg = getThalwegValuesFromRaster(outputRasterFile, x, y)
-                    valuesThalweg = zDelta2velocity(np.array(valuesThalweg))
-                    if len(valuesThalweg) > 0:
-                        valueMax = np.nanmax(valuesThalweg)
+                    zThalweg = data["zdelta"]
+                    velThalweg = zDelta2velocity(zThalweg)
+                    if len(zThalweg) > 0:
+                        variableValues["velocity"].append(np.nanmax(velThalweg))
                     else:
-                        valueMax = np.nan
-                    variableValues["velocity"].append(valueMax)
-
+                        variableValues["velocity"].append(np.nan)
                 else:
                     outputRasterFile = getRasterFile(path, variable=variable)
                     valuesThalweg = getThalwegValuesFromRaster(outputRasterFile, x, y)
@@ -930,8 +932,18 @@ def getYlabelBoxplot(variable):
         ylabel = "flux"
     elif variable == "alphaIn":
         ylabel = "input alpha angle [°]"
-    elif variable == "velocityIn":
+    elif variable == "velocityMaxIn":
         ylabel = "input max. velocity limit [m/s]"
+    elif variable == "zdeltaMaxIn":
+        ylabel = "input max. velocity line height limit [m]"
+    elif variable == "velocityAveraged":
+        ylabel = "max. velocity averaged [m/s]"
+    elif variable == "zdeltaAveraged":
+        ylabel = "max. velocity line height averaged [m]"
+    elif variable == "impressureAveraged":
+        ylabel = "max. impact pressure averaged [kPa]"
+    elif variable == "travelLengthAveraged":
+        ylabel = "max. travel length averaged [m]"
     else:
         message = f"{variable} is not a valid thalweg variable for the statistic boxplot"
         log.error(message)
@@ -939,13 +951,13 @@ def getYlabelBoxplot(variable):
     return ylabel
 
 
-def addPolygonToPlot(fileToPolygon, ax, color="magenta", label=""):
+def addPolygonToPlot(fileToPolygon, ax, color="#6900D1", label=""):
     """
     add a polygon to a plot and its legend
 
     Parameters
     --------------
-    fileToPolygon: str
+    fileToPolygon: pathlib Path
         path to file
     ax: plt.axis
         axis in which polygon is plotted
@@ -961,7 +973,7 @@ def addPolygonToPlot(fileToPolygon, ax, color="magenta", label=""):
     """
 
     poygon = gpd.read_file(fileToPolygon)
-    poygon.plot(ax=ax, edgecolor=color, linewidth=2, facecolor="none", zorder=10)
+    poygon.plot(ax=ax, edgecolor=color, linewidth=0.7, facecolor="none", zorder=4)
     relPatch = Patch(edgecolor=color, facecolor="white", label=label)
     handles, labels = ax.get_legend_handles_labels()
     handles.append(relPatch)
@@ -970,7 +982,7 @@ def addPolygonToPlot(fileToPolygon, ax, color="magenta", label=""):
     return ax
 
 
-def addReleaseAreaToPlot(ax, pathDict):
+def addReleaseAreaToPlot(ax, pathDict, colorPra):
     """
     if a release area in shp or geojson format is provided, add it to the plot
 
@@ -987,12 +999,12 @@ def addReleaseAreaToPlot(ax, pathDict):
         axis with added release area
     """
 
-    relDir = pathDict["avalancheDir"] / "Inputs" / "REL"
+    relDir = pathDict["avalancheDir"] / "Inputs" / "RELJSON"
     filePath = getRasterFile(relDir, variable="", ext="shp")
     if filePath == "":
         filePath = getRasterFile(relDir, variable="", ext="geojson")
     if filePath != "":
-        ax = addPolygonToPlot(filePath, ax, label="release area")
+        ax = addPolygonToPlot(filePath, ax, color=colorPra, label="release area")
     else:
         log.info("No polygon file for a release area is found.")
     return ax

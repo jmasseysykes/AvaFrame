@@ -1,3 +1,5 @@
+from avaframe.runScripts.runComputeDist import outFile
+
 import numpy as np
 import pathlib
 import matplotlib.pyplot as plt
@@ -47,6 +49,7 @@ def regionalThalweg2DPlotMain(avalanchedir, cfg, simhash=""):
     startRow = cfg["GENERAL"].get("startRow")
     startCol = cfg["GENERAL"].get("startCol")
     relId = cfg["GENERAL"].get("relId")
+    cfgFlags = cfg["FLAGS"]
 
     pathToOutput = avalanchedir / "Outputs" / module / "peakFiles" / f"res_{simhash}"
     savePath = avalanchedir / "Outputs" / "regionalThalwegPlot"
@@ -134,15 +137,21 @@ def regionalThalweg2DPlotMain(avalanchedir, cfg, simhash=""):
         profileExtended["zdelta"] = tools.getThalwegValuesFromRaster(
             zDeltaRasterFile, profileExtended["x"], profileExtended["y"]
         )
-        plotThalweg2D(pathDict, cfg, profileExtended)
-        plotDFAThalwegAltitude(pathDict, profileExtended)
-        plotDFAGenerationLocation(pathDict, profileExtended, rasterVariable="fpTravelAngleMax")
+        if cfgFlags.getboolean("plotThalweg2D"):
+            plotThalweg2D(pathDict, cfg, profileExtended)
+        if cfgFlags.getboolean("plotThalwegAltitude"):
+            plotDFAThalwegAltitude(pathDict, profileExtended)
+        if cfgFlags.getboolean("plotThalwegLocation"):
+            plotDFAGenerationLocation(cfg, pathDict, profileExtended, rasterVariable="fpTravelAngleMax")
+    if cfgFlags.getboolean("plotAllThalwegLocations"):
+        plotThalweg2D(pathDict, cfg, profileExtended, onlyField=True)
+    if cfgFlags.getboolean("plotStatisticBoxplot"):
+        tools.plotBoxplot(pathDict, cfg)
+    if cfgFlags.getboolean("plotStatisticScatterPlot"):
+        tools.plotScatterInputEffective(pathDict, cfg)
 
-    tools.plotBoxplot(pathDict, cfg)
-    tools.plotScatterInputEffective(pathDict, cfg)
 
-
-def plotThalweg2D(pathDict, cfg, dataThalweg):
+def plotThalweg2D(pathDict, cfg, dataThalweg, onlyField=False):
     """
     saves 2D thalweg plot:
     top panel: position of the thalweg in the field
@@ -156,6 +165,8 @@ def plotThalweg2D(pathDict, cfg, dataThalweg):
         contains configuration settings
     dataThalweg: numpy array
         thalweg data that are saved in the simulation (averaged x-, y-coordinates, zdelta, ..)
+    onlyField: bool
+        if True: only the field with thalweg locations is plotted
 
     """
     variable = cfg["GENERAL"].get("plotVariable")
@@ -166,7 +177,8 @@ def plotThalweg2D(pathDict, cfg, dataThalweg):
 
     if thalwegPra:
         folder = pathlib.Path(pathDict["pathToOutput"] / "thalwegData")
-        files = list(folder.glob(f"extended_thalwegData_{centerOf}*"))
+        # files = list(folder.glob(f"extended_thalwegData_{centerOf}*"))
+        files = list(folder.glob(f"thalwegData_{centerOf}*"))
         x = []
         y = []
 
@@ -182,28 +194,31 @@ def plotThalweg2D(pathDict, cfg, dataThalweg):
         x = np.array(dataThalweg[f"x"])
 
     # PLOT
-    fig, axs = plt.subplots(2, 1)
+    if onlyField:
+        fig, ax = plt.subplots()
+        fig, ax = tools.makeFieldPlot(ax, fig, cfg, pathDict, x, y, dataThalweg)
+    else:
+        fig, axs = plt.subplots(2, 1)
 
-    fig.set_figheight(10)
-    fig.tight_layout(pad=3.0)
-    fig.set_figwidth(8)
+        fig.set_figheight(10)
+        fig.tight_layout(pad=3.0)
+        fig.set_figwidth(8)
 
-    fig, axs[0] = tools.makeFieldPlot(
-        axs[0], fig, pathDict, variable, x, y, dataThalweg, thalwegPra=thalwegPra
-    )
-    axs[1] = tools.makeThalwegPlot(axs[1], dataThalweg, pathDict)
+        fig, axs[0] = tools.makeFieldPlot(axs[0], fig, cfg, pathDict, variable, x, y, dataThalweg)
+        axs[1] = tools.makeThalwegPlot(axs[1], dataThalweg, pathDict)
 
-    if size != "":
-        axs[0].set_title(f"Avalanche size: {size}")
+        if size != "":
+            axs[0].set_title(f"Avalanche size: {size}")
 
-    outFileNamePart = tools.getOutFileNamePartly(pathDict["titleVariables"])
+    outFileNamePart = tools.getOutFileNamePartly(pathDict["titleVariables"], allThalwegs=onlyField)
     outFileName = f"Thalweg2D_{outFileNamePart}.png"
     fig.savefig(savePath / outFileName)
     log.info(f"saved plot: {(savePath / outFileName)}")
 
 
-def plotDFAGenerationLocation(pathDict, profile, rasterVariable="fpTravelAngleMax"):
+def plotDFAGenerationLocation(cfg, pathDict, profile, rasterVariable="fpTravelAngleMax"):
     savePath = pathDict["savePath"]
+    colorPra = cfg["GENERAL"].get("colorPra")
     # TODO: putplotLim into cfg
     plotLim = 50
 
@@ -218,7 +233,7 @@ def plotDFAGenerationLocation(pathDict, profile, rasterVariable="fpTravelAngleMa
     ax1 = outCom3Plots.avalancheThalwegPlot(ax1, raster, dem, profile)
     ax1.legend()
 
-    tools.addReleaseAreaToPlot(ax1, pathDict)
+    tools.addReleaseAreaToPlot(ax1, pathDict, f"#{colorPra}")
 
     # set plot limits depending on thalweg
     plt.xlim((np.min(profile["x"]) - plotLim, np.max(profile["x"]) + plotLim))

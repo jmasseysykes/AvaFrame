@@ -451,8 +451,8 @@ def extendProfileTop(extTopOption, particlesIni, profile, dem=None, cfg=None, co
         yFirst = profile["y"][0]
         zFirst = profile["z"][0]
         # get last particle of the path
-        sLast = profile["s"][0]
-        zLast = profile["z"][0]
+        sLast = profile["s"][-1]
+        zLast = profile["z"][-1]
         # compute runout angle for averaged path
         tanAngle = (zFirst - zLast) / sLast
         # compute ds
@@ -470,6 +470,11 @@ def extendProfileTop(extTopOption, particlesIni, profile, dem=None, cfg=None, co
         zExtTop = particlesIni["z"][indTop]
         ds = ds[indTop]
     elif extTopOption == 2:
+        if len(profile["x"]) <= 1:
+            # skip computation if thalweg is one point
+            log.warning("Skip top extension of thalweg since profile contains only one point.")
+            return profile
+
         # TODO: for option 2, the code is very similar as in extendProfileBottom, should we summarize both in one function with options/different handling for top nd bottom extension?
         if dem is None:
             message = f"If extTopOption = 2, the dem needs to be provided"
@@ -500,10 +505,10 @@ def extendProfileTop(extTopOption, particlesIni, profile, dem=None, cfg=None, co
         extendMinDistance = cfg.getfloat("nCellsMinExtend") * csz
         extendMaxDistance = cfg.getfloat("nCellsMaxExtend") * csz
         pointsOfInterestFirst = np.where((r < extendMaxDistance) & (r > extendMinDistance))[0]
-        xInterest = profile["x"][pointsOfInterestFirst]
-        yInterest = profile["y"][pointsOfInterestFirst]
 
-        if len(xInterest) > 0:
+        if pointsOfInterestFirst.size > 0:
+            xInterest = profile["x"][pointsOfInterestFirst]
+            yInterest = profile["y"][pointsOfInterestFirst]
             # find the direction in which we need to extend the path
             vDirX = xInterest - xFirst
             vDirY = yInterest - yFirst
@@ -571,11 +576,17 @@ def extendProfileTop(extTopOption, particlesIni, profile, dem=None, cfg=None, co
             dy = yExtTop - profile["y"][0]
             ds = np.sqrt(dx**2 + dy**2)
 
-    # extend profile
-    profile["x"] = np.append(xExtTop, profile["x"])
-    profile["y"] = np.append(yExtTop, profile["y"])
-    profile["z"] = np.append(zExtTop, profile["z"])
-    profile["s"] = np.append(0, profile["s"] + ds)
+            # extend profile
+            profile["x"] = np.append(xExtTop, profile["x"])
+            profile["y"] = np.append(yExtTop, profile["y"])
+            profile["z"] = np.append(zExtTop, profile["z"])
+            profile["s"] = np.append(0, profile["s"] + ds)
+
+        else:
+            log.warning(
+                "Path not extended at top as no point of interest for computing direction \
+                of where to extend path is found"
+            )
     if debugPlot:
         debPlot.plotPathExtTop(profile, particlesIni, xFirst, yFirst, zFirst, dz1)
     return profile
@@ -1066,10 +1077,14 @@ def resamplePath(cfg, dem, avaProfile):
     indFirst = np.argwhere(avaProfile['s'] >= s0 - resampleDistance/3)[0][0]
     # look for the first point in the extension and take the one before; if the extension is
     # shorter than a resample step, the mass averaged part reaches the last point
-    indEndCandidates = np.argwhere(avaProfile['s'] >= sEnd + resampleDistance/3)
-    indEnd = indEndCandidates[0][0]-1 if len(indEndCandidates) > 0 else np.size(avaProfile['s'])-1
+    try:
+        indEndCandidates = np.argwhere(avaProfile['s'] >= sEnd + resampleDistance/3)
+        indEnd = indEndCandidates[0][0]-1 if len(indEndCandidates) > 0 else np.size(avaProfile['s'])-1
+        avaProfile['indEndMassAverage'] = indEnd
+    except:
+        avaProfile["indEndMassAverage"] = len(avaProfile["s"]) - 1
+        
     avaProfile['indStartMassAverage'] = indFirst
-    avaProfile['indEndMassAverage'] = indEnd
     return avaProfile
 
 
