@@ -40,7 +40,7 @@ def preparePathGeneralMain(profile, cfgDFAPath, dem):
     profileExtended = profileAveraged.copy()
 
     # skip profile that only contains one point
-    if len(profile["x"]) <= 2:
+    if len(profileAveraged["x"]) <= 2:
         return profileAveraged, profileExtended
 
     # if extTopOption == 2, particlesIni are not used!!

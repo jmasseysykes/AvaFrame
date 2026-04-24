@@ -11,10 +11,11 @@ import os
 from cmcrameri import cm as cmapCrameri
 import matplotlib.pyplot as plt
 from matplotlib.colors import BoundaryNorm
-from matplotlib.colors import ListedColormap
+import matplotlib.patheffects as pe
 from matplotlib.patches import Patch
 import geopandas as gpd
 import pickle
+import copy
 
 import avaframe.in2Trans.rasterUtils as rasterUtils
 import avaframe.in1Data.getInput as gI
@@ -274,18 +275,16 @@ def makeFieldPlot(ax, fig, cfg, pathDict, xThalweg, yThalweg, dataThalweg):
         Axis for the plot
     fig: matplotlib figure
         Figure for the plot
+    cfg: configparser
+        settings
     pathDict: dict
         contains simulation paths
-    variable: str
-        output variable that is plotted (of whole simulation)
     xThalweg: numpy array
         x coordinates of all thalwegs
     yThalweg: numpy array
         y coordinates of all thalwegs
     dataThalweg: dict
         profile of thalweg that is highlighted here
-    thalwegPra: bool
-        if True, PRA is coloured
 
     Returns
     -----------
@@ -308,12 +307,13 @@ def makeFieldPlot(ax, fig, cfg, pathDict, xThalweg, yThalweg, dataThalweg):
         ax.plot(x, y, "-", c="k", linewidth=1, zorder=5, label=f"thalweg {centerOf}" if i == 0 else None)
     ax.plot(dataThalweg["x"], dataThalweg["y"], "-", c=colorThalweg, zorder=6)
     ax.legend()
+
     if thalwegPra:
-        ax = addReleaseAreaToPlot(ax, pathDict, colorPra=f"#{colorPra}")
+        ax = addReleaseAreaToPlot(ax, pathDict, colorPra=f"#{colorPra}", linewidth=0.7)
     return fig, ax
 
 
-def makeThalwegPlot(ax, dataThalweg, pathDict):
+def makeThalwegPlot(ax, dataThalweg, pathDict, colorPra=""):
     """make a 2D thalweg plot for FlowPy output
 
     Parameters
@@ -339,7 +339,6 @@ def makeThalwegPlot(ax, dataThalweg, pathDict):
         Axis containing the thalweg plot
     """
     # demDict = gI.readDEM(pathDict["avalancheDir"])
-    # TODO: Check if flipping DEM is needed!(gI.readDem flips the raster.)
     # dem = demDict["rasterData"]
     # header = demDict["header"]
     # cellSize = header["cellsize"]
@@ -348,20 +347,18 @@ def makeThalwegPlot(ax, dataThalweg, pathDict):
     y = np.array(dataThalweg["y"])
     z = np.array(dataThalweg["z"])
     s = np.array(dataThalweg["s"])
+    sExtended = np.array(dataThalweg["s"])
+    zExtended = np.array(dataThalweg["z"])
+    indStart = dataThalweg["indStartMassAverage"]
+    indEnd = dataThalweg["indEndMassAverage"]
 
     file = getRasterFile(pathDict["pathToOutput"], variable="zdelta")
     zdelta = getThalwegValuesFromRaster(file, x, y)
 
-    # only use these values that are within the avalanche path
-    # and add those values from the corner
-    indInPath = np.where(zdelta > 0)[0]
-    if indInPath[0] > 0:
-        indInPath = np.append(indInPath[0] - 1, indInPath)
-    if (indInPath[-1] + 1) < len(zdelta):
-        indInPath = np.append(indInPath, indInPath[-1] + 1)
+    _, indInPath = getProfileInPath(pathDict["pathToOutput"], dataThalweg)
 
     s = s[indInPath]
-    s = s - s[0]
+    # s = s - s[0]
     zdelta = zdelta[indInPath]
     z = z[indInPath]
 
@@ -386,10 +383,43 @@ def makeThalwegPlot(ax, dataThalweg, pathDict):
     ds = max(s) - min(s)
     dh = ds * np.tan(np.deg2rad(alpha))
 
-    ax.hlines(max(z) - dh, ds * 0.85, ds, colors="k", linestyles="dotted", linewidths=0.7)
+    ax.hlines(max(z) - dh, ds * 0.85, s[0] + ds, colors="k", linestyles="dotted", linewidths=0.7)
 
-    ax.plot(s, z, c="gray", linestyle="-", label="z")
-    ax.plot(s, [d + z for d, z in zip(z, zdelta)], "r", label="$z^{vel}$")
+    # ax.plot(sExtended, zExtended, c="gray", linestyle="-", label="z")
+    ax.plot(
+        sExtended[: indStart + 1],
+        zExtended[: indStart + 1],
+        "-y.",
+        label="z: top extension",
+        lw=2,
+        path_effects=[pe.Stroke(linewidth=3, foreground="b"), pe.Normal()],
+    )
+    ax.plot(
+        sExtended[indEnd:],
+        zExtended[indEnd:],
+        "-y.",
+        label="z: bottom extension",
+        lw=2,
+        path_effects=[pe.Stroke(linewidth=3, foreground="g"), pe.Normal()],
+    )
+    ax.plot(
+        sExtended[indStart: indEnd + 1],
+        zExtended[indStart: indEnd + 1],
+        "-y.",
+        label="z",
+        lw=2,
+        path_effects=[pe.Stroke(linewidth=3, foreground="k"), pe.Normal()],
+    )
+
+    ax.plot(s, [d + z for d, z in zip(z, zdelta)], "r", lw=2, label="$z^{vel}$")
+    if colorPra != "":
+        ax.scatter(
+            s[0],
+            z[0],
+            s=30,
+            zorder=10,
+            color=f"#{colorPra}",
+        )
 
     ax.vlines(
         s_max[0],
@@ -406,7 +436,7 @@ def makeThalwegPlot(ax, dataThalweg, pathDict):
         label=rf"""$\alpha_{{eff}}$ = {np.round(angle_degrees, 1)}°""",
     )
     ax.plot(
-        [0, ds],
+        [s[0], ds + s[0]],
         [max(z), max(z) - dh],
         "k--",
         linewidth=0.7,
@@ -421,7 +451,7 @@ def makeThalwegPlot(ax, dataThalweg, pathDict):
         label=rf"""$\Delta$s = {np.round(s[-1] - s[0], 1)} m""",
     )
     ax.vlines(
-        x=0,
+        x=s[0],
         ymin=z[-1],
         ymax=z[0],
         color="silver",
@@ -433,7 +463,7 @@ def makeThalwegPlot(ax, dataThalweg, pathDict):
     # ax.text(s_max[0] + 1, z_max[0] + zdelta_max[0]/2, '$v_{max}$ = ' + str(np.round(np.sqrt(zdelta_max[0] * 2 * 9.81),1)) + ' m/s', va = 'center')
     # ax.text((max(s)/5*4), min(z) + (max(z) - min(z)) / 22, fr'{angle_degrees:.1f}°', fontsize=11, ha='center')
     # ax.text((ds*0.88), (max(z)-dh) * 1.05, fr'{alpha:.1f}°', fontsize=11, ha='center')
-    ax.set(xlabel="$s_{xy}$ [m]")
+    ax.set(xlabel="horizontal distance [m]")
     ax.set(ylabel="elevation [m]")
     ax.legend()
 
@@ -485,6 +515,51 @@ def getThalwegValuesFromRaster(rasterFile, x, y):
         yllc=header["yllcenter"],
     )
     return thalwegValues
+
+
+def getProfileInPath(pathOutput, profile):
+    """
+    get location and profile within the flow path
+
+    Parameters
+    --------------
+    pathOutput: pathlib Path
+        path to Output folder
+    profile: dict
+        contains profile parameters
+
+    Returns
+    --------------
+    profileInPath: dict
+        contains profile parameters within the flow path
+    indInpath: numpy array
+        indices of the original profile that are within the flow path
+
+    """
+    x = profile["x"]
+    y = profile["y"]
+    z = profile["z"]
+    file = getRasterFile(pathOutput, variable="zdelta")
+    zdelta = getThalwegValuesFromRaster(file, x, y)
+
+    # only use these values that are within the avalanche path
+    # and add those values from the corner
+    indInPath = np.where(zdelta > 0)[0]
+    if indInPath.size > 0:
+        if indInPath[0] > 0:
+            indInPath = np.append(indInPath[0] - 1, indInPath)
+        if (indInPath[-1] + 1) < len(zdelta):
+            indInPath = np.append(indInPath, indInPath[-1] + 1)
+
+        x = x[indInPath]
+        y = y[indInPath]
+        s = np.append([0], gT.computeLengthOfLine2D(x, y))
+        z = z[indInPath]
+
+        profileInPath = {"x": x, "y": y, "s": s, "z": z}
+    else:
+        profileInPath = copy.deepcopy(profile)
+    return profileInPath, indInPath
 
 
 def savePickle(profileExtended, inFileName):
@@ -550,7 +625,7 @@ def plotBoxplot(pathDict, cfg, title=""):
         ysize2Max = cfgSize.getint(f"{varLabel}Size2Max")
         ysize3Max = cfgSize.getint(f"{varLabel}Size3Max")
         ysize4Max = cfgSize.getint(f"{varLabel}Size4Max")
-        print(ysize4Max)
+
         y_min, y_max = ax2.get_ylim()
         y_max = np.max([y_max, 1.1 * ysize4Max])
         ax2.axhspan(0, ysize1Max, facecolor="#" + cfgSize["colorSize1"], alpha=0.2)  # Avalanche size 1
@@ -670,6 +745,7 @@ def plotScatterInputEffective(pathDict, cfg, title=""):
     if varName in ["velocity", "velocityMaxIn", "velocityAveraged"]:
         # dataNanIn = getDataBoxplots(path, "velocityIn", centerOf)
         # dataNanEff = getDataBoxplots(path, "velocity", centerOf)
+        # TODO: think of a better way!
         dataDict = maxParameterOfAllThalwegs(path, ["test"], centerOf)
         dataNanIn = dataDict["velocityIn"]
         # dataNanEff = zDelta2velocity(np.array(dataDict["zdelta"]))
@@ -860,12 +936,13 @@ def maxParameterOfAllThalwegs(path, variableList, centerOf):
         variableValues["velocityIn"] = []
         for filename in os.listdir(path / "thalwegData"):
             # Check if the filename starts with 'thalweg'
-            if filename.startswith(f"thalwegData_{centerOf}"):
+            if filename.startswith(f"extended_thalwegData_{centerOf}"):
                 # Construct full file path
                 filePath = path / "thalwegData" / filename
                 data = np.load(filePath, allow_pickle="TRUE")
-                x = data["x"]
-                y = data["y"]
+                profileInPath, _ = getProfileInPath(path, data)
+                x = profileInPath["x"]
+                y = profileInPath["y"]
 
                 if variable == "alphaIn":
                     alpha = data["alpha"]
@@ -873,6 +950,8 @@ def maxParameterOfAllThalwegs(path, variableList, centerOf):
                 elif variable == "zdeltaMaxIn":
                     zDelta = data["zDeltaMax"]
                     variableValues[variable].append(zDelta)
+                elif variable == "travelLengthMax":
+                    variableValues[variable].append(profileInPath["s"][-1])
                 elif "Averaged" in variable:
 
                     values = data[variable.replace("Averaged", "")]
@@ -951,7 +1030,7 @@ def getYlabelBoxplot(variable):
     return ylabel
 
 
-def addPolygonToPlot(fileToPolygon, ax, color="#6900D1", label=""):
+def addPolygonToPlot(fileToPolygon, ax, color="#6900D1", linewidth=1.0, label=""):
     """
     add a polygon to a plot and its legend
 
@@ -963,6 +1042,8 @@ def addPolygonToPlot(fileToPolygon, ax, color="#6900D1", label=""):
         axis in which polygon is plotted
     color: str
         color of polygon
+    linewidth: float
+        linewidth of polygons
     label: str
         label for legend
 
@@ -973,7 +1054,7 @@ def addPolygonToPlot(fileToPolygon, ax, color="#6900D1", label=""):
     """
 
     poygon = gpd.read_file(fileToPolygon)
-    poygon.plot(ax=ax, edgecolor=color, linewidth=0.7, facecolor="none", zorder=4)
+    poygon.plot(ax=ax, edgecolor=color, linewidth=linewidth, facecolor="none", zorder=5)
     relPatch = Patch(edgecolor=color, facecolor="white", label=label)
     handles, labels = ax.get_legend_handles_labels()
     handles.append(relPatch)
@@ -982,7 +1063,7 @@ def addPolygonToPlot(fileToPolygon, ax, color="#6900D1", label=""):
     return ax
 
 
-def addReleaseAreaToPlot(ax, pathDict, colorPra):
+def addReleaseAreaToPlot(ax, pathDict, colorPra, linewidth=1):
     """
     if a release area in shp or geojson format is provided, add it to the plot
 
@@ -992,6 +1073,10 @@ def addReleaseAreaToPlot(ax, pathDict, colorPra):
         axis in which release area is plotted
     pathDict: dict
         contains paths to avalacnhe directory
+    colorPra: str
+        color of PRAs
+    linewidth: float
+        line width of PRAs
 
     Returns
     ----------
@@ -1004,7 +1089,7 @@ def addReleaseAreaToPlot(ax, pathDict, colorPra):
     if filePath == "":
         filePath = getRasterFile(relDir, variable="", ext="geojson")
     if filePath != "":
-        ax = addPolygonToPlot(filePath, ax, color=colorPra, label="release area")
+        ax = addPolygonToPlot(filePath, ax, color=colorPra, linewidth=linewidth, label="release area")
     else:
         log.info("No polygon file for a release area is found.")
     return ax
