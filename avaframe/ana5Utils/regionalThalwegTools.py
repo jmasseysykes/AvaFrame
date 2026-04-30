@@ -177,9 +177,9 @@ def plotField(ax, fig, pathDict, variable):
     cellSize = header["cellsize"]
     clabel = {
         "zdelta": "max. zDelta [m]",
-        "fpTravelAngle": "max. travel angle [°]",
-        "travelLength": "max. travel length [m]",
-        "velocityMax": "max. velocity [m/s]",
+        "fpTravelAngle": "Max. travel angle [°]",
+        "travelLength": "Max. travel length [m]",
+        "velocityMax": "Max. velocity [m/s]",
         "": "",
     }
     if variable == "velocityMax":
@@ -385,8 +385,10 @@ def makeThalwegPlot(ax, dataThalweg, pathDict, colorPra=""):
 
     ax.hlines(max(z) - dh, ds * 0.85, s[0] + ds, colors="k", linestyles="dotted", linewidths=0.7)
 
+    # dummy for legend group
+    (dummyGeom,) = ax.plot(np.nan, np.nan, linestyle="none", label="Thalweg geometry")
     # ax.plot(sExtended, zExtended, c="gray", linestyle="-", label="z")
-    ax.plot(
+    (thalwegTop,) = ax.plot(
         sExtended[: indStart + 1],
         zExtended[: indStart + 1],
         "-y.",
@@ -394,7 +396,7 @@ def makeThalwegPlot(ax, dataThalweg, pathDict, colorPra=""):
         lw=2,
         path_effects=[pe.Stroke(linewidth=3, foreground="b"), pe.Normal()],
     )
-    ax.plot(
+    (thalwegBot,) = ax.plot(
         sExtended[indEnd:],
         zExtended[indEnd:],
         "-y.",
@@ -402,7 +404,7 @@ def makeThalwegPlot(ax, dataThalweg, pathDict, colorPra=""):
         lw=2,
         path_effects=[pe.Stroke(linewidth=3, foreground="g"), pe.Normal()],
     )
-    ax.plot(
+    (thalweg,) = ax.plot(
         sExtended[indStart: indEnd + 1],
         zExtended[indStart: indEnd + 1],
         "-y.",
@@ -410,8 +412,20 @@ def makeThalwegPlot(ax, dataThalweg, pathDict, colorPra=""):
         lw=2,
         path_effects=[pe.Stroke(linewidth=3, foreground="k"), pe.Normal()],
     )
-
-    ax.plot(s, [d + z for d, z in zip(z, zdelta)], "r", lw=2, label="$z^{vel}$")
+    l = ax.legend(handles=[dummyGeom, thalweg, thalwegTop, thalwegBot], loc="upper center")
+    ax.add_artist(l)
+    # dummy for legend group
+    (p1,) = ax.plot(np.nan, np.nan, linestyle="none", label="Model input\nparameter")
+    (p2,) = ax.plot(
+        [s[0], ds + s[0]],
+        [max(z), max(z) - dh],
+        "k--",
+        linewidth=0.7,
+        label=rf"""$\alpha_{{input}}$ = {np.round(alpha, 1)}°""" if alpha is not None else "",
+    )
+    # dummy for legend group
+    (p3,) = ax.plot(np.nan, np.nan, linestyle="none", label="Model results &\nderived metrics")
+    (p4,) = ax.plot(s, [d + z for d, z in zip(z, zdelta)], "r", lw=2, label="$z^{vel}$")
     if colorPra != "":
         ax.scatter(
             s[0],
@@ -421,13 +435,13 @@ def makeThalwegPlot(ax, dataThalweg, pathDict, colorPra=""):
             color=f"#{colorPra}",
         )
 
-    ax.vlines(
+    p5 = ax.vlines(
         s_max[0],
         z_max[0],
         z_max[0] + zdelta_max[0],
         label="$v_{max}$ = " + str(np.round(np.sqrt(zdelta_max[0] * 2 * 9.81), 1)) + " m/s",
     )
-    ax.plot(
+    (p6,) = ax.plot(
         [s[0], s[-1]],
         [z[0], z[-1]],
         color="lightgrey",
@@ -435,14 +449,8 @@ def makeThalwegPlot(ax, dataThalweg, pathDict, colorPra=""):
         linewidth=1,
         label=rf"""$\alpha_{{eff}}$ = {np.round(angle_degrees, 1)}°""",
     )
-    ax.plot(
-        [s[0], ds + s[0]],
-        [max(z), max(z) - dh],
-        "k--",
-        linewidth=0.7,
-        label=rf"""$\alpha_{{input}}$ = {np.round(alpha, 1)}°""" if alpha is not None else "",
-    )
-    ax.plot(
+
+    (p7,) = ax.plot(
         [s[0], s[-1]],
         [min(z)] * 2,
         color="grey",
@@ -450,22 +458,22 @@ def makeThalwegPlot(ax, dataThalweg, pathDict, colorPra=""):
         linestyle="--",
         label=rf"""$\Delta$s = {np.round(s[-1] - s[0], 1)} m""",
     )
-    ax.vlines(
+    p8 = ax.vlines(
         x=s[0],
         ymin=z[-1],
         ymax=z[0],
         color="silver",
         linestyle="--",
         linewidth=1,
-        label=(rf"$\Delta z = {np.round(z[0] - z[-1], 1)}$$m$"),
+        label=(rf"$\Delta z = {np.round(z[0] - z[-1], 1)}$ m"),
     )
 
     # ax.text(s_max[0] + 1, z_max[0] + zdelta_max[0]/2, '$v_{max}$ = ' + str(np.round(np.sqrt(zdelta_max[0] * 2 * 9.81),1)) + ' m/s', va = 'center')
     # ax.text((max(s)/5*4), min(z) + (max(z) - min(z)) / 22, fr'{angle_degrees:.1f}°', fontsize=11, ha='center')
     # ax.text((ds*0.88), (max(z)-dh) * 1.05, fr'{alpha:.1f}°', fontsize=11, ha='center')
-    ax.set(xlabel="horizontal distance [m]")
-    ax.set(ylabel="elevation [m]")
-    ax.legend()
+    ax.set(xlabel="Horizontal distance [m]")
+    ax.set(ylabel="Elevation [m]")
+    ax.legend(handles=[p1, p2, p3, p4, p5, p6, p7, p8], loc="upper right")  # , bbox_to_anchor=(1, 1))
 
     '''
     ax.text(
@@ -1089,7 +1097,7 @@ def addReleaseAreaToPlot(ax, pathDict, colorPra, linewidth=1):
     if filePath == "":
         filePath = getRasterFile(relDir, variable="", ext="geojson")
     if filePath != "":
-        ax = addPolygonToPlot(filePath, ax, color=colorPra, linewidth=linewidth, label="release area")
+        ax = addPolygonToPlot(filePath, ax, color=colorPra, linewidth=linewidth, label="Release area")
     else:
         log.info("No polygon file for a release area is found.")
     return ax
