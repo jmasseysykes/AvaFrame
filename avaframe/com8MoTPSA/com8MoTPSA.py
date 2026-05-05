@@ -35,8 +35,9 @@ def com8MoTPSAMain(cfgMain, cfgInfo=None, returnSimName=None):
     cfgInfo : dict or None, optional
         override configuration info passed to MoTGenerateConfigs
     returnSimName : any, optional
-        if not None, return the first simDict key after running
+        if not None, return the simDict keys after running (refers to simName)
     """
+
     # Get all necessary information from the configuration files
     currentModule = sys.modules[__name__]
     simDict, _, inputSimFiles, _ = com1DFA.com1DFAPreprocess(cfgMain, cfgInfo, module=currentModule)
@@ -97,7 +98,7 @@ def com8MoTPSAMain(cfgMain, cfgInfo=None, returnSimName=None):
             _checkForFolderAndDelete(avaDir, folderName)
 
     if returnSimName is not None and simDict:
-        return next(iter(simDict))
+        return list(simDict.keys())
     return None
 
 
