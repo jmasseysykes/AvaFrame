@@ -405,8 +405,8 @@ def makeThalwegPlot(ax, dataThalweg, pathDict, colorPra=""):
         path_effects=[pe.Stroke(linewidth=3, foreground="g"), pe.Normal()],
     )
     (thalweg,) = ax.plot(
-        sExtended[indStart: indEnd + 1],
-        zExtended[indStart: indEnd + 1],
+        sExtended[indStart : indEnd + 1],
+        zExtended[indStart : indEnd + 1],
         "-y.",
         label="z",
         lw=2,

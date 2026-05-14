@@ -175,9 +175,11 @@ def plotThalweg2D(pathDict, cfg, dataThalweg, onlyField=False):
 
     if thalwegPra:
         folder = pathlib.Path(pathDict["pathToOutput"] / "thalwegData")
-        # TODO: choose if we want to represent the thalweg that is extended, averaged or extended within the path
-        files = list(folder.glob(f"extended_thalwegData_{centerOf}*"))
-        # files = list(folder.glob(f"thalwegData_{centerOf}*"))
+        # choose if we represent the thalweg that is averaged or extended
+        if cfg["GENERAL"].getboolean("2DExtendedThalwegs"):
+            files = list(folder.glob(f"extended_thalwegData_{centerOf}*"))
+        else:
+            files = list(folder.glob(f"thalwegData_{centerOf}*"))
         x = []
         y = []
 
