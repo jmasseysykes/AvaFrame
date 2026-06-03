@@ -80,9 +80,6 @@ class Cell:
         self._SQRT2 = np.sqrt(2.0)
         self._RAD90 = np.deg2rad(90.0)
 
-        self.startcellVolMin = startcellVol
-        self.startcellVolMax = startcellVol
-
         # NOTE: Forest Interaction included here
         # if FSI != None AND forestParams != None - then self.ForestBool = True and forestParams and
         # FSI are accordingly initialized
@@ -200,10 +197,6 @@ class Cell:
             if parent.forestIntCount < (self.forestIntCount - self.isForest):
                 self.forestIntCount = parent.forestIntCount + self.isForest
 
-    def calc_startCellVol(self, startcellVolNew):
-        self.startcellVolMin = min(self.startcellVolMin, startcellVolNew)
-        self.startcellVolMax = max(self.startcellVolMax, startcellVolNew)
-
     def calcDistMin(self, calc3D=False):
         """
         function calculates the projected horizontal (self.min_distance) and 3D (self.minDistXYZ) length
@@ -312,7 +305,6 @@ class Cell:
         self.z_delta_neighbour[self.z_delta_neighbour < 0] = 0
         self.z_delta_neighbour[self.z_delta_neighbour > self.max_z_delta] = self.max_z_delta
 
-
     def calc_tanbeta(self):
         """calculates the normalized terrain based routing"""
         _ds = np.array([[self._SQRT2, 1, self._SQRT2], [1, 1, 1], [self._SQRT2, 1, self._SQRT2]])
@@ -327,12 +319,10 @@ class Cell:
         if abs(np.sum(self.tan_beta)) > 0:
             self.r_t = self.tan_beta**self.exp / np.sum(self.tan_beta**self.exp)
 
-
     def calcFlowEnergy(self):
         # calculate flow energy (corresponding to kinetic energy)
-        # analog to: kin_energy = mass * velocity² / 2  
-    	self.flowEnergy = self.flux * self.z_delta * 9.81
-
+        # analog to: kin_energy = mass * velocity² / 2
+        self.flowEnergy = self.flux * self.z_delta * 9.81
 
     def calc_persistence(self):
         """
