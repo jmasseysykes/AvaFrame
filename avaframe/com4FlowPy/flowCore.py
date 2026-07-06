@@ -638,8 +638,9 @@ def calculation(args):
     zdeltaListRelId = []
     travelLengthMaxListRelId = []
     startcell_idx = 0
-    startCellIdDict = {}
     timeThalweg = 0.0
+    nextRowIdx = row_list[0]
+    nextColIdx = col_list[0]
     while startcell_idx < len(row_list):
 
         if infraBool:
@@ -937,6 +938,7 @@ def calculation(args):
                     ]
 
                 # check if the next startcell has the same startcellId
+                print(startcell_idx, len(row_list))
                 if startcell_idx + 1 < len(row_list):
                     nextRowIdx = row_list[startcell_idx + 1]
                     nextColIdx = col_list[startcell_idx + 1]
