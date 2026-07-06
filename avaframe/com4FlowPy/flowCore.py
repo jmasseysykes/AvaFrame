@@ -938,7 +938,6 @@ def calculation(args):
                     ]
 
                 # check if the next startcell has the same startcellId
-                print(startcell_idx, len(row_list))
                 if startcell_idx + 1 < len(row_list):
                     nextRowIdx = row_list[startcell_idx + 1]
                     nextColIdx = col_list[startcell_idx + 1]
