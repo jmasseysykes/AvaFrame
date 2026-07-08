@@ -1219,8 +1219,8 @@ def initializeSimulation(cfg, outDir, demOri, inputSimLines, logName):
     relAreaActual = np.sum(relAreaActualList)
     reportAreaInfo = {
         "Release area info": {
-            "Projected Area [m2]": "%.2f" % (relAreaProjected),
-            "Actual Area [m2]": "%.2f" % (relAreaActual),
+            "Projected Area [m2] (raster-based)": "%.2f" % (relAreaProjected),
+            "Actual Area [m2] (raster-based)": "%.2f" % (relAreaActual),
         }
     }
 
