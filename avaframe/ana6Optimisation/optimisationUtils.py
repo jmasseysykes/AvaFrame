@@ -925,7 +925,7 @@ def loadVariationData(cfgOpt, avaDir, outDir=None):
     # Read scenario flag
     scenario = cfgOpt.getint('PARAM_BOUNDS', 'scenario')
 
-    avaName = avaDir.split('/')[-1]
+    avaName = pathlib.Path(avaDir).name
 
     # Scenario 1: Morris is not run prior
     if scenario == 1:

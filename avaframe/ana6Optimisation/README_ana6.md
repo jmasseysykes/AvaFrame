@@ -89,10 +89,10 @@ Folder:
 
 - **POLYGONS**  
   Contains the cropshape and defines the maximal extent of runout area that is used for calculating areal indicators.
-  This shapefile must have the suffix `_cropshape.shp`.
+  It also defines the upstream end of computing the areal indicators. The shapefile must have the suffix `_cropshape.shp`.
 
 - **REFDATA**  
-  Defines the runout area of the reference event. This shapefile must have the suffix `_POLY.shp`.
+  Defines the runout area of the reference event. This shapefile must contain a polygon feature and have the suffix `_POLY.shp`.
 
 - **REL**  
   Defines the release area of the avalanche event.
@@ -274,7 +274,8 @@ of the parameter space for surrogate-based optimisation.
 
 ## Notes
 
-- Performing Morris sensitivity analysis before optimisation is recommended to reduce the parameter space.
+- Performing Morris sensitivity analysis before optimisation is recommended to reduce the parameter space, i.e. reduce 
+  the number of parameters considered in the optimisation based on ranking of 'most influential' parameters. 
   However, using Morris samples directly for optimisation is not recommended, since they do not provide optimal coverage
   of the input parameter space.
 - Convergence analysis significantly increases computational cost.
